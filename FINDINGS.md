@@ -43,11 +43,13 @@ Design decisions that held up:
   viewport; completion is "every column reaches the fill line", with trapped air pockets below the
   surface tamped afterwards. (Measuring coverage alone stalled at ~97 % in the first version.)
   The page above the soil line stays readable, which is the point.
-- Three plant systems on a persistent device-resolution canvas: ground flowers that carpet the
-  dirt to about three-quarters density, vines that climb both edges of the window like a trellis,
-  and flowering bushes that rise from the soil line to fill roughly the next quarter of the
-  window. See `docs/spike0-growing.png` and `docs/spike0-garden.png`. Bushes currently read as
-  narrow columns; shape and species variety are Phase 2 art direction.
+- One of three kinds of flora per run, chosen at random, on a persistent device-resolution
+  canvas: ground flowers that carpet the dirt to about three-quarters density, vines that climb
+  both edges of the window like a trellis, or flowering bushes that rise from the soil line to
+  fill roughly the next quarter of the window. See `docs/spike0-flowers.png`,
+  `docs/spike0-vines.png`, `docs/spike0-bushes.png`. The bushes have thin trunks and can read as
+  floating blobs where the soil surface is bumpy; the vines-only run leaves the mound itself
+  bare. Both are Phase 2 art direction, not mechanics.
 - Two stacked canvases (dirt at grid resolution, growth at device resolution) so the browser
   composites and the dirt layer stops redrawing once buried.
 - Inline `!important` styles on a custom element plus Shadow DOM: the test page's

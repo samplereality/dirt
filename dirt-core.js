@@ -7,8 +7,9 @@
  *   - everything rendered to <canvas> (a low-res falling-sand grid for dirt,
  *     a device-resolution persistent canvas for the plants)
  *   - the dirt buries 50–66% of the viewport from the bottom; the page stays visible above it
- *   - then: ground flowers fill the dirt, vines climb both edges of the window like a trellis,
- *     and flowering bushes rise from the soil line into roughly the next quarter of the window
+ *   - then one kind of flora, chosen at random per run: ground flowers that fill the dirt, vines
+ *     that climb both edges of the window like a trellis, or flowering bushes that rise from the
+ *     soil line into roughly the next quarter of the window
  *   - no data collection, no network requests, no storage
  *
  * Usage:   Dirt.start({ debug: true })   Dirt.stop()   Dirt.stats()   Dirt.phase
@@ -28,6 +29,7 @@
   var DEFAULTS = {
     cellSize: 4,        // CSS px per simulation cell (dirt grid resolution)
     fill: [0.5, 0.66],  // how much of the viewport the dirt buries (fraction of height, picked at random)
+    flora: 'random',    // which plants grow: 'flowers' | 'vines' | 'bushes' | 'random' (one kind per run)
     buryMs: 20000,      // target time for the dirt to reach its fill line
     growMs: 25000,      // target time for the garden to finish
     bushHeight: [0.15, 0.25], // bushes rise this fraction of the viewport height above the soil line
@@ -76,7 +78,7 @@
       particles: [], tips: [],
       shovelAcc: 0, shovelInterval: 70, shovelCells: 60,
       coverage: 0, greenCov: 0, filled: 0, tops: null, topFull: 0,
-      fillFrac: 0.58, targetTop: 0, dirtCells: 0,
+      fillFrac: 0.58, targetTop: 0, dirtCells: 0, flora: 'flowers',
       vines: [], bushes: [],
       t0: 0, tPhase: 0, lastT: 0, frames: 0, raf: 0,
       stats: { dts: new Float32Array(120), di: 0, dn: 0, simMs: 0, drawMs: 0, longFrames: 0, p95: 0 },
@@ -300,10 +302,10 @@
   }
 
   // ---------------------------------------------------------------- growth phase
-  // Three plant systems grow at once after the dirt settles:
-  //   ground flowers — fill the dirt itself
-  //   vines          — climb the left and right edges of the window, as if on a trellis
-  //   bushes         — rise from the soil line to fill roughly the next quarter of the window
+  // One of three plant systems grows after the dirt settles (picked at random unless forced):
+  //   flowers — ground flowers fill the dirt itself
+  //   vines   — climb the left and right edges of the window, as if on a trellis
+  //   bushes  — rise from the soil line to fill roughly the next quarter of the window
 
   function soilY(s, px) { // CSS-px y of the dirt surface under CSS-px x
     var cs = s.opts.cellSize, x = Math.max(0, Math.min(s.W - 1, Math.floor(px / cs)));
@@ -345,15 +347,15 @@
     s.fillFrac = 1 - (sum / s.W) / s.H;
     s.dirtCells = s.filled;
 
-    // Vines: two or three per side, staggered, each climbing from the soil line to the top edge.
-    for (var side = -1; side <= 1; side += 2) {
-      var n = 2 + (rnd() < 0.5 ? 1 : 0);
+    // Vines: three to five per side, staggered, each climbing from the soil line to the top edge.
+    for (var side = -1; side <= 1 && s.flora === 'vines'; side += 2) {
+      var n = 3 + Math.floor(rnd() * 3);
       for (var i = 0; i < n; i++) {
         var baseX = side < 0 ? 6 + rnd() * 16 : cw - 6 - rnd() * 16;
         var y0 = soilY(s, baseX) + 4;
         s.vines.push({
           side: side, baseX: baseX, x: baseX, y: y0, px: baseX, py: y0,
-          amp: 10 + rnd() * 18, freq: 0.02 + rnd() * 0.025, phase: rnd() * 6.2832,
+          amp: 14 + rnd() * 20, freq: 0.02 + rnd() * 0.025, phase: rnd() * 6.2832,
           v: (y0 + 12) / (growMs * (0.65 + rnd() * 0.25)),  // px per ms; reaches the top before growMs
           delay: i * growMs * 0.1 + rnd() * 1500,
           leafAcc: 0, nextLeaf: 10 + rnd() * 8, flowerAcc: 0, nextFlower: 25 + rnd() * 30, alt: 0,
@@ -363,7 +365,7 @@
     }
 
     // Bushes: spaced across the width, each with its own height target and flower colour.
-    var count = Math.max(3, Math.round(cw / 72)), bh = s.opts.bushHeight;
+    var count = s.flora === 'bushes' ? Math.max(3, Math.round(cw / 72)) : 0, bh = s.opts.bushHeight;
     for (var b = 0; b < count; b++) {
       var bx = (b + 0.3 + rnd() * 0.4) * cw / count;
       var sy = soilY(s, bx);
@@ -485,19 +487,26 @@
   }
 
   function stepGrow(s, dt, k) {
-    var elapsed = now() - s.tPhase;
-    stepGroundFlowers(s, k);
-    stepVines(s, dt, k, elapsed);
-    stepBushes(s, dt, k, elapsed);
+    var elapsed = now() - s.tPhase, i;
+    if (s.flora === 'flowers') { stepGroundFlowers(s, k); }
+    else if (s.flora === 'vines') { stepVines(s, dt, k, elapsed); }
+    else { stepBushes(s, dt, k, elapsed); }
 
     if ((s.frames & 15) === 0) {
-      var g = s.grid, gr = s.green, n = 0, i;
-      for (i = 0; i < gr.length; i++) { if (g[i] && gr[i]) { n++; } }
-      s.greenCov = s.dirtCells ? n / s.dirtCells : 1;
-      var vinesDone = true; for (i = 0; i < s.vines.length; i++) { if (!s.vines[i].done) { vinesDone = false; } }
-      var bushesDone = s.tips.length === 0; for (i = 0; i < s.bushes.length; i++) { if (!s.bushes[i].started) { bushesDone = false; } }
-      var flowersDone = s.greenCov >= 0.6;
-      if ((vinesDone && bushesDone && flowersDone) || elapsed > s.opts.growMs * 1.6) {
+      var finished;
+      if (s.flora === 'flowers') {
+        var g = s.grid, gr = s.green, n = 0;
+        for (i = 0; i < gr.length; i++) { if (g[i] && gr[i]) { n++; } }
+        s.greenCov = s.dirtCells ? n / s.dirtCells : 1;
+        finished = s.greenCov >= 0.75;
+      } else if (s.flora === 'vines') {
+        finished = true;
+        for (i = 0; i < s.vines.length; i++) { if (!s.vines[i].done) { finished = false; } }
+      } else {
+        finished = s.tips.length === 0;
+        for (i = 0; i < s.bushes.length; i++) { if (!s.bushes[i].started) { finished = false; } }
+      }
+      if (finished || elapsed > s.opts.growMs * 1.6) {
         setPhase(s, 'garden');
         s.running = false; // the garden stays on screen; nothing left to animate
       }
@@ -541,7 +550,7 @@
 
   function hudText(s) {
     var st = API.stats();
-    return 'Dirt ' + VERSION + '  ' + s.phase + '  ' + s.W + 'x' + s.H + ' cells @' + s.dpr + 'x\n' +
+    return 'Dirt ' + VERSION + '  ' + s.phase + ' (' + s.flora + ')  ' + s.W + 'x' + s.H + ' cells @' + s.dpr + 'x\n' +
       'fps ' + st.fps.toFixed(0) + '  frame ' + st.avgFrameMs.toFixed(1) + 'ms  p95 ' + st.p95FrameMs.toFixed(1) + 'ms  long ' + st.longFrames + '\n' +
       'sim ' + st.simMs.toFixed(2) + 'ms  draw ' + st.drawMs.toFixed(2) + 'ms  dirt ' + (st.coverage * 100).toFixed(0) + '/' + (st.fill * 100).toFixed(0) + '%  flowers ' + (st.greenCoverage * 100).toFixed(0) + '%\n' +
       't ' + st.elapsed.toFixed(1) + 's  heartbeat ' + st.frames;
@@ -562,6 +571,8 @@
       if (opts) { for (var k2 in opts) { if (opts[k2] !== undefined) { o[k2] = opts[k2]; } } }
       var s = S = makeState(o);
       s.fillFrac = o.fill[0] + rnd() * (o.fill[1] - o.fill[0]);
+      var kinds = ['flowers', 'vines', 'bushes'];
+      s.flora = kinds.indexOf(o.flora) >= 0 ? o.flora : kinds[Math.floor(rnd() * kinds.length)];
       buildDom(s);
       layout(s, true);
       s.t0 = now(); s.running = true;
@@ -589,7 +600,7 @@
       for (var i = 0; i < st.dn; i++) { sum += st.dts[i]; }
       var avg = st.dn ? sum / st.dn : 0;
       return {
-        version: VERSION, phase: s.phase, running: s.running,
+        version: VERSION, phase: s.phase, flora: s.flora, running: s.running,
         grid: [s.W, s.H], viewport: [s.cw, s.ch], dpr: s.dpr,
         fps: avg ? 1000 / avg : 0, avgFrameMs: avg, p95FrameMs: st.p95,
         simMs: st.simMs, drawMs: st.drawMs, longFrames: st.longFrames,
