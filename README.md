@@ -1,7 +1,8 @@
 # Dirt — Bury the Web
 
 A creative digital work by Mark Sample. On any web page, the reader taps a button and shovelfuls
-of dirt bury the page from the bottom up; once covered, green shoots sprout and overtake the page.
+of dirt bury the lower half to two-thirds of the page; then flowers carpet the soil, vines climb the
+edges of the window like a trellis, and flowering bushes rise from the dirt into the page above.
 Mobile-first. This repository is **Phase 1: feasibility** — throwaway spikes answering one
 question: which delivery mechanisms can put an animated overlay on top of arbitrary web pages on
 a phone, smoothly and reliably?

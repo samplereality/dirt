@@ -5,7 +5,10 @@
  * host page; it only draws on top of it:
  *   - one full-viewport fixed container at max z-index, isolated in a Shadow DOM
  *   - everything rendered to <canvas> (a low-res falling-sand grid for dirt,
- *     a device-resolution persistent canvas for growth)
+ *     a device-resolution persistent canvas for the plants)
+ *   - the dirt buries 50–66% of the viewport from the bottom; the page stays visible above it
+ *   - then: ground flowers fill the dirt, vines climb both edges of the window like a trellis,
+ *     and flowering bushes rise from the soil line into roughly the next quarter of the window
  *   - no data collection, no network requests, no storage
  *
  * Usage:   Dirt.start({ debug: true })   Dirt.stop()   Dirt.stats()   Dirt.phase
@@ -24,10 +27,12 @@
 
   var DEFAULTS = {
     cellSize: 4,        // CSS px per simulation cell (dirt grid resolution)
-    buryMs: 20000,      // target time for dirt to cover the viewport
-    growMs: 25000,      // target time for greenery to overtake the dirt
+    fill: [0.5, 0.66],  // how much of the viewport the dirt buries (fraction of height, picked at random)
+    buryMs: 20000,      // target time for the dirt to reach its fill line
+    growMs: 25000,      // target time for the garden to finish
+    bushHeight: [0.15, 0.25], // bushes rise this fraction of the viewport height above the soil line
     maxDpr: 2,          // cap device pixel ratio for the growth canvas
-    maxTips: 320,       // concurrent growing shoot tips
+    maxTips: 320,       // concurrent growing bush tips
     debug: false,       // show the FPS / heartbeat HUD
     onPhase: null       // function(phase, dirt) — 'burying' | 'growing' | 'garden' | 'stopped'
   };
@@ -53,7 +58,9 @@
   var DIRT_PAL = DIRT_HEX.map(rgba32);
   var STEM_COL = ['#2f6b2a', '#3b8a33', '#4a9c3c', '#5aa84a'];
   var LEAF_COL = ['#55a33b', '#6cbf45', '#8fd45a', '#3f8f36', '#79c94f', '#a3e06a'];
-  var FLOWER_COL = ['#fff6d5', '#ffd84a', '#ff8fb1', '#c9a6ff'];
+  var FLOWER_COL = ['#fff6d5', '#ffd84a', '#ff8fb1', '#c9a6ff', '#ff6f59', '#ffb347', '#f7f7f7', '#e04f8a'];
+  var VINE_FLOWER_COL = ['#7b5cff', '#c66bd6', '#ff8fb1', '#5aa9ff', '#f4f0ff'];
+  var BUSH_FLOWER_COL = ['#ff5d8f', '#ffd166', '#ffffff', '#ff8c42', '#d96bff', '#ff4d6d'];
 
   // ---------------------------------------------------------------- state
   var S = null; // live state while running
@@ -69,9 +76,10 @@
       particles: [], tips: [],
       shovelAcc: 0, shovelInterval: 70, shovelCells: 60,
       coverage: 0, greenCov: 0, filled: 0, tops: null, topFull: 0,
+      fillFrac: 0.58, targetTop: 0, dirtCells: 0,
+      vines: [], bushes: [],
       t0: 0, tPhase: 0, lastT: 0, frames: 0, raf: 0,
       stats: { dts: new Float32Array(120), di: 0, dn: 0, simMs: 0, drawMs: 0, longFrames: 0, p95: 0 },
-      finalFill: null, finalIdx: 0,
       running: false
     };
   }
@@ -150,6 +158,7 @@
       }
     }
     s.cw = cw; s.ch = ch; s.dpr = dpr; s.W = W; s.H = H; s.grid = grid; s.green = green; s.tops = new Int16Array(W);
+    s.targetTop = Math.max(1, H - Math.round(H * s.fillFrac)); // row the dirt surface must reach
     s.off = s.off || root.document.createElement('canvas');
     s.off.width = W; s.off.height = H;
     s.octx = s.off.getContext('2d');
@@ -157,9 +166,9 @@
     s.buf = new Uint32Array(s.img.data.buffer);
     s.dctx.imageSmoothingEnabled = false;
 
-    // ~300 shovelfuls to fill the grid in buryMs.
+    // ~300 shovelfuls to reach the fill line in buryMs (a quarter extra for grains lost to slides).
     var shovels = 300;
-    s.shovelCells = Math.max(24, Math.round((W * H) * 1.25 / shovels));
+    s.shovelCells = Math.max(24, Math.round((W * (H - s.targetTop)) * 1.25 / shovels));
     s.shovelInterval = Math.max(16, s.opts.buryMs / shovels);
   }
 
@@ -172,7 +181,7 @@
 
   function surfaceScan(s) { // tops[x] = row of highest dirt cell (H if empty); also fraction of columns full
     var W = s.W, H = s.H, tops = s.tops || (s.tops = new Int16Array(W)), full = 0;
-    for (var x = 0; x < W; x++) { var t = columnTop(s, x); tops[x] = t; if (t === 0) { full++; } }
+    for (var x = 0; x < W; x++) { var t = columnTop(s, x); tops[x] = t; if (t <= s.targetTop) { full++; } }
     s.topFull = full / W;
     return tops;
   }
@@ -187,7 +196,7 @@
         var cx = Math.floor(rnd() * W);
         if (tops[cx] > bt) { bt = tops[cx]; bx = cx; }
       }
-      if (bt === 0) { return false; } // every probe hit a full column (the viewport is nearly buried)
+      if (bt <= s.targetTop) { return false; } // every probe hit a finished column
     } else {
       bx = Math.floor(rnd() * W);
     }
@@ -276,12 +285,14 @@
     if ((s.frames & 7) === 0) { countFilled(s); surfaceScan(s); }
     var done = (s.topFull >= 1 && s.particles.length === 0) || elapsed > s.opts.buryMs * 2.5;
     if (done) {
-      // Tamp down: fill any air pockets so the page is fully buried before growth begins.
-      var g = s.grid;
-      for (var i = 0; i < g.length; i++) { if (!g[i]) { g[i] = 1 + (i % DIRT_PAL.length); } }
+      // Tamp down: fill air pockets beneath the surface so the dirt reads as solid ground.
+      var g = s.grid, W = s.W, H = s.H;
+      surfaceScan(s);
+      for (var x = 0; x < W; x++) { for (var y = s.tops[x]; y < H; y++) { var i = y * W + x; if (!g[i]) { g[i] = 1 + (i % DIRT_PAL.length); } } }
       s.particles.length = 0;
       countFilled(s);
       drawDirt(s);
+      initGarden(s);
       setPhase(s, 'growing');
       return;
     }
@@ -289,6 +300,16 @@
   }
 
   // ---------------------------------------------------------------- growth phase
+  // Three plant systems grow at once after the dirt settles:
+  //   ground flowers — fill the dirt itself
+  //   vines          — climb the left and right edges of the window, as if on a trellis
+  //   bushes         — rise from the soil line to fill roughly the next quarter of the window
+
+  function soilY(s, px) { // CSS-px y of the dirt surface under CSS-px x
+    var cs = s.opts.cellSize, x = Math.max(0, Math.min(s.W - 1, Math.floor(px / cs)));
+    return s.tops[x] * cs;
+  }
+
   function markGreen(s, px, py, r) {
     var cs = s.opts.cellSize, W = s.W, H = s.H, gr = s.green;
     var x0 = Math.max(0, Math.floor((px - r) / cs)), x1 = Math.min(W - 1, Math.floor((px + r) / cs));
@@ -296,106 +317,190 @@
     for (var y = y0; y <= y1; y++) { for (var x = x0; x <= x1; x++) { gr[y * W + x] = 1; } }
   }
 
+  function pick(arr) { return arr[Math.floor(rnd() * arr.length)]; }
+
   function drawLeaf(s, x, y, ang, size, col) {
     var c = s.gctx;
-    c.save();
-    c.translate(x, y); c.rotate(ang);
+    c.save(); c.translate(x, y); c.rotate(ang);
     c.fillStyle = col;
-    c.beginPath();
-    c.ellipse(size * 0.6, 0, size, size * 0.45, 0, 0, 6.2832);
-    c.fill();
+    c.beginPath(); c.ellipse(size * 0.6, 0, size, size * 0.45, 0, 0, 6.2832); c.fill();
     c.restore();
-    markGreen(s, x + Math.cos(ang) * size * 0.6, y + Math.sin(ang) * size * 0.6, size * 0.8);
   }
 
-  function sprout(s, x, y, ang, depth, maxLen, w) {
+  function drawFlower(s, x, y, r, col, centerCol) {
+    var c = s.gctx, n = 5 + (rnd() < 0.3 ? 1 : 0), rot = rnd() * 6.2832;
+    c.fillStyle = col;
+    for (var i = 0; i < n; i++) {
+      var a = rot + i * 6.2832 / n;
+      c.beginPath(); c.ellipse(x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.6, r * 0.55, r * 0.35, a, 0, 6.2832); c.fill();
+    }
+    c.fillStyle = centerCol || '#ffd84a';
+    c.beginPath(); c.arc(x, y, r * 0.3, 0, 6.2832); c.fill();
+  }
+
+  function initGarden(s) {
+    var cw = s.cw, ch = s.ch, growMs = s.opts.growMs;
+    s.tips = []; s.vines = []; s.bushes = [];
+    var sum = 0; for (var x = 0; x < s.W; x++) { sum += s.tops[x]; }
+    s.fillFrac = 1 - (sum / s.W) / s.H;
+    s.dirtCells = s.filled;
+
+    // Vines: two or three per side, staggered, each climbing from the soil line to the top edge.
+    for (var side = -1; side <= 1; side += 2) {
+      var n = 2 + (rnd() < 0.5 ? 1 : 0);
+      for (var i = 0; i < n; i++) {
+        var baseX = side < 0 ? 6 + rnd() * 16 : cw - 6 - rnd() * 16;
+        var y0 = soilY(s, baseX) + 4;
+        s.vines.push({
+          side: side, baseX: baseX, x: baseX, y: y0, px: baseX, py: y0,
+          amp: 10 + rnd() * 18, freq: 0.02 + rnd() * 0.025, phase: rnd() * 6.2832,
+          v: (y0 + 12) / (growMs * (0.65 + rnd() * 0.25)),  // px per ms; reaches the top before growMs
+          delay: i * growMs * 0.1 + rnd() * 1500,
+          leafAcc: 0, nextLeaf: 10 + rnd() * 8, flowerAcc: 0, nextFlower: 25 + rnd() * 30, alt: 0,
+          col: pick(STEM_COL), leafCol: pick(LEAF_COL), flowerCol: pick(VINE_FLOWER_COL), done: false
+        });
+      }
+    }
+
+    // Bushes: spaced across the width, each with its own height target and flower colour.
+    var count = Math.max(3, Math.round(cw / 72)), bh = s.opts.bushHeight;
+    for (var b = 0; b < count; b++) {
+      var bx = (b + 0.3 + rnd() * 0.4) * cw / count;
+      var sy = soilY(s, bx);
+      var h = Math.min(sy - 6, (bh[0] + rnd() * (bh[1] - bh[0])) * ch);
+      s.bushes.push({
+        x: bx, sy: sy, top: sy - h, h: h, delay: rnd() * growMs * 0.3, started: false,
+        v: h / (growMs * 0.45), stemCol: pick(STEM_COL), leafCol: pick(LEAF_COL), leafCol2: pick(LEAF_COL),
+        flowerCol: pick(BUSH_FLOWER_COL)
+      });
+    }
+  }
+
+  function sproutTip(s, bush, x, y, ang, depth, maxLen, w) {
     if (s.tips.length >= s.opts.maxTips) { return; }
-    s.tips.push({ x: x, y: y, a: ang, len: 0, maxLen: maxLen, w: w, depth: depth,
-      col: STEM_COL[Math.min(STEM_COL.length - 1, depth)] });
+    s.tips.push({ bush: bush, x: x, y: y, a: ang, len: 0, maxLen: maxLen, w: w, depth: depth });
   }
 
-  function stepGrow(s, dt, k) {
-    var c = s.gctx, tips = s.tips, cw = s.cw, ch = s.ch;
-    var elapsed = now() - s.tPhase;
-    var grow = elapsed / s.opts.growMs; // 0..1 nominal progress
-    // Seeds: first from the soil line (bottom edge), then wherever the soil is still bare.
-    var seeds = s.phase !== 'growing' ? 0 : (grow < 0.12 ? 3 : 2);
-    for (var sIdx = 0; sIdx < seeds; sIdx++) {
-      if (grow < 0.12 || rnd() < 0.35) {
-        sprout(s, rnd() * cw, ch + 2, -1.5708 + (rnd() - 0.5) * 0.8, 0, 90 + rnd() * 220, 2.6);
-      } else {
-        // probe for bare cells; sprout there (a seed in the soil)
-        var cs = s.opts.cellSize, W = s.W, H = s.H;
-        for (var t = 0; t < 24; t++) {
-          var ci = Math.floor(rnd() * W * H);
-          if (!s.green[ci]) {
-            var px = (ci % W + 0.5) * cs, py = (Math.floor(ci / W) + 0.5) * cs;
-            sprout(s, px, py, -1.5708 + (rnd() - 0.5) * 1.6, 1, 40 + rnd() * 120, 1.8);
-            break;
-          }
+  function stepBushes(s, dt, k, elapsed) {
+    var c = s.gctx, tips = s.tips, cw = s.cw, i, w = 0;
+    for (i = 0; i < s.bushes.length; i++) {
+      var bsh = s.bushes[i];
+      if (!bsh.started && elapsed >= bsh.delay) {
+        bsh.started = true;
+        var trunks = 1 + (rnd() < 0.6 ? 1 : 0) + (rnd() < 0.3 ? 1 : 0);
+        for (var t = 0; t < trunks; t++) {
+          sproutTip(s, bsh, bsh.x + (rnd() - 0.5) * 10, bsh.sy + 2, -1.5708 + (rnd() - 0.5) * 0.7, 0, bsh.h * (0.8 + rnd() * 0.25), 3);
         }
       }
     }
-    var step = (1.4 + grow * 1.2) * k, w = 0;
-    for (var i = 0; i < tips.length; i++) {
-      var tp = tips[i];
+    for (i = 0; i < tips.length; i++) {
+      var tp = tips[i], bush = tp.bush;
+      var step = bush.v * dt;
       var nx = tp.x + Math.cos(tp.a) * step, ny = tp.y + Math.sin(tp.a) * step;
-      c.strokeStyle = tp.col; c.lineWidth = tp.w * (1 - 0.6 * tp.len / tp.maxLen);
+      c.strokeStyle = bush.stemCol; c.lineWidth = tp.w * (1 - 0.55 * tp.len / tp.maxLen);
       c.beginPath(); c.moveTo(tp.x, tp.y); c.lineTo(nx, ny); c.stroke();
-      markGreen(s, nx, ny, tp.w);
       tp.x = nx; tp.y = ny; tp.len += step;
-      // wobble + a gentle pull upward (phototropism)
-      tp.a += (rnd() - 0.5) * 0.35 * k;
-      tp.a += (-1.5708 - tp.a) * 0.025 * k;
+      tp.a += (rnd() - 0.5) * 0.3 * k;
+      tp.a += (-1.5708 - tp.a) * 0.03 * k;
       if (rnd() < 0.08 * k) {
         var side = rnd() < 0.5 ? 1 : -1;
-        drawLeaf(s, nx, ny, tp.a + side * (1.1 + rnd() * 0.5), 3 + rnd() * 5 + grow * 4, LEAF_COL[Math.floor(rnd() * LEAF_COL.length)]);
+        drawLeaf(s, nx, ny, tp.a + side * (1.0 + rnd() * 0.6), 3.5 + rnd() * 4, rnd() < 0.5 ? bush.leafCol : bush.leafCol2);
       }
-      if (tp.len > 12 && tp.depth < 4 && rnd() < 0.035 * k) {
+      if (rnd() < 0.025 * k && tp.depth < 3) { drawFlower(s, nx + (rnd() - 0.5) * 6, ny, 2.5 + rnd() * 2.5, bush.flowerCol); }
+      if (tp.len > 6 && tp.depth < 4 && rnd() < 0.07 * k) {
         var bs = rnd() < 0.5 ? 1 : -1;
-        sprout(s, nx, ny, tp.a + bs * (0.5 + rnd() * 0.7), tp.depth + 1, tp.maxLen * (0.45 + rnd() * 0.3), tp.w * 0.72);
+        sproutTip(s, bush, nx, ny, tp.a + bs * (0.5 + rnd() * 0.6), tp.depth + 1, (tp.maxLen - tp.len) * (0.35 + rnd() * 0.35), tp.w * 0.7);
       }
-      var alive = tp.len < tp.maxLen && ny > -12 && nx > -12 && nx < cw + 12 && ny < ch + 12;
+      var alive = tp.len < tp.maxLen && ny > bush.top && ny < bush.sy + 4 && nx > -8 && nx < cw + 8;
       if (!alive) {
-        // terminal leaf cluster, occasionally a flower
-        drawLeaf(s, nx, ny, tp.a, 4 + rnd() * 6, LEAF_COL[Math.floor(rnd() * LEAF_COL.length)]);
-        if (rnd() < 0.08) {
-          c.fillStyle = FLOWER_COL[Math.floor(rnd() * FLOWER_COL.length)];
-          c.beginPath(); c.arc(nx, ny, 2 + rnd() * 2.5, 0, 6.2832); c.fill();
-        }
+        // Bloom at the end of every branch; big flowers on the main stems.
+        drawLeaf(s, nx, ny, tp.a + 0.8, 4 + rnd() * 4, bush.leafCol);
+        drawLeaf(s, nx, ny, tp.a - 0.8, 4 + rnd() * 4, bush.leafCol2);
+        if (tp.depth <= 1 || rnd() < 0.6) { drawFlower(s, nx, ny, (tp.depth === 0 ? 6 : 3.5) + rnd() * 3, bush.flowerCol); }
         continue;
       }
       tips[w++] = tp;
     }
     tips.length = w;
+  }
 
-    if (s.phase === 'growing' && (s.frames & 15) === 0) {
-      var gr = s.green, n = 0;
-      for (var j = 0; j < gr.length; j++) { n += gr[j]; }
-      s.greenCov = n / gr.length;
-      if ((s.greenCov >= 0.975 && elapsed > s.opts.growMs * 0.6) || elapsed > s.opts.growMs * 2.2) {
-        // Final pass: list the bare cells and fill them with leaves over the next frames.
-        var rest = [];
-        for (var q = 0; q < gr.length; q++) { if (!gr[q]) { rest.push(q); } }
-        s.finalFill = rest; s.finalIdx = 0;
-        setPhase(s, 'garden');
+  function stepVines(s, dt, k, elapsed) {
+    var c = s.gctx, cw = s.cw;
+    for (var i = 0; i < s.vines.length; i++) {
+      var v = s.vines[i];
+      if (v.done || elapsed < v.delay) { continue; }
+      var dy = v.v * dt;
+      v.y -= dy;
+      v.x = v.baseX + Math.sin(v.y * v.freq + v.phase) * v.amp - v.side * Math.abs(Math.cos(v.y * v.freq * 0.5)) * 4;
+      c.strokeStyle = v.col; c.lineWidth = 2.6;
+      c.beginPath(); c.moveTo(v.px, v.py); c.lineTo(v.x, v.y); c.stroke();
+      v.px = v.x; v.py = v.y;
+      v.leafAcc += dy; v.flowerAcc += dy;
+      if (v.leafAcc >= v.nextLeaf) {
+        v.leafAcc = 0; v.nextLeaf = 9 + rnd() * 9; v.alt ^= 1;
+        var inward = v.side < 0 ? 0 : 3.1416;
+        drawLeaf(s, v.x, v.y, inward + (v.alt ? 0.75 : -0.75) * -v.side, 5 + rnd() * 5, v.leafCol);
+        if (rnd() < 0.25) { // tendril curling inward
+          c.strokeStyle = v.col; c.lineWidth = 1.2;
+          var len = 14 + rnd() * 26, dir = -v.side;
+          c.beginPath(); c.moveTo(v.x, v.y);
+          c.quadraticCurveTo(v.x + dir * len * 0.7, v.y - len * 0.5, v.x + dir * len, v.y + (rnd() - 0.5) * len * 0.6);
+          c.stroke();
+        }
+      }
+      if (v.flowerAcc >= v.nextFlower) {
+        v.flowerAcc = 0; v.nextFlower = 22 + rnd() * 34;
+        drawFlower(s, v.x - v.side * (4 + rnd() * 8), v.y, 4.5 + rnd() * 2.5, v.flowerCol, '#fff7cc');
+      }
+      if (v.y < -8 || v.x < -20 || v.x > cw + 20) { v.done = true; }
+    }
+  }
+
+  function stepGroundFlowers(s, k) {
+    if (s.greenCov >= 0.75) { return; } // leave some soil showing between the flowers
+    var W = s.W, H = s.H, cs = s.opts.cellSize, g = s.grid, gr = s.green, tops = s.tops;
+    var want = 1 + (rnd() < 0.4 * k ? 1 : 0);
+    for (var n = 0; n < want; n++) {
+      for (var t = 0; t < 6; t++) {
+        var x = Math.floor(rnd() * W), top = tops[x];
+        if (top >= H) { continue; }
+        var y = top + Math.floor(rnd() * (H - top)), ci = y * W + x;
+        if (!g[ci] || gr[ci]) { continue; }
+        var px = (x + 0.5) * cs, py = (y + 0.5) * cs, r;
+        if (rnd() < 0.55) {
+          r = 2.5 + rnd() * 3.5;
+          s.gctx.strokeStyle = pick(STEM_COL); s.gctx.lineWidth = 1;
+          s.gctx.beginPath(); s.gctx.moveTo(px, py + r * 1.6); s.gctx.lineTo(px, py); s.gctx.stroke();
+          drawFlower(s, px, py, r, pick(FLOWER_COL));
+        } else {
+          r = 3 + rnd() * 3;
+          var a = rnd() * 6.2832;
+          drawLeaf(s, px, py, a, r, pick(LEAF_COL));
+          drawLeaf(s, px, py, a + 2.4, r * 0.9, pick(LEAF_COL));
+        }
+        markGreen(s, px, py, r * 1.1);
+        break;
       }
     }
   }
 
-  function stepFinal(s) {
-    var rest = s.finalFill, cs = s.opts.cellSize, W = s.W;
-    var end = Math.min(rest.length, s.finalIdx + 120);
-    for (; s.finalIdx < end; s.finalIdx++) {
-      var ci = rest[s.finalIdx];
-      if (s.green[ci]) { continue; }
-      drawLeaf(s, (ci % W + 0.5) * cs, (Math.floor(ci / W) + 0.5) * cs, rnd() * 6.2832, 4 + rnd() * 5,
-        LEAF_COL[Math.floor(rnd() * LEAF_COL.length)]);
-    }
-    if (s.finalIdx >= rest.length) {
-      s.greenCov = 1;
-      // Let the remaining tips finish, then stop the loop; the garden stays on screen.
-      if (s.tips.length === 0) { s.running = false; s.finalFill = null; }
+  function stepGrow(s, dt, k) {
+    var elapsed = now() - s.tPhase;
+    stepGroundFlowers(s, k);
+    stepVines(s, dt, k, elapsed);
+    stepBushes(s, dt, k, elapsed);
+
+    if ((s.frames & 15) === 0) {
+      var g = s.grid, gr = s.green, n = 0, i;
+      for (i = 0; i < gr.length; i++) { if (g[i] && gr[i]) { n++; } }
+      s.greenCov = s.dirtCells ? n / s.dirtCells : 1;
+      var vinesDone = true; for (i = 0; i < s.vines.length; i++) { if (!s.vines[i].done) { vinesDone = false; } }
+      var bushesDone = s.tips.length === 0; for (i = 0; i < s.bushes.length; i++) { if (!s.bushes[i].started) { bushesDone = false; } }
+      var flowersDone = s.greenCov >= 0.6;
+      if ((vinesDone && bushesDone && flowersDone) || elapsed > s.opts.growMs * 1.6) {
+        setPhase(s, 'garden');
+        s.running = false; // the garden stays on screen; nothing left to animate
+      }
     }
   }
 
@@ -428,7 +533,6 @@
     if (s.phase === 'burying') { stepBury(s, dt, k); }
     var t2 = now();
     if (s.phase === 'growing') { stepGrow(s, dt, k); }
-    else if (s.phase === 'garden' && s.finalFill) { stepGrow(s, dt, k); stepFinal(s); }
     var t3 = now();
     recordStats(s, dt, t2 - t1, t3 - t2);
     if (s.hud && (s.frames % 15) === 0) { s.hud.textContent = hudText(s); }
@@ -439,7 +543,7 @@
     var st = API.stats();
     return 'Dirt ' + VERSION + '  ' + s.phase + '  ' + s.W + 'x' + s.H + ' cells @' + s.dpr + 'x\n' +
       'fps ' + st.fps.toFixed(0) + '  frame ' + st.avgFrameMs.toFixed(1) + 'ms  p95 ' + st.p95FrameMs.toFixed(1) + 'ms  long ' + st.longFrames + '\n' +
-      'sim ' + st.simMs.toFixed(2) + 'ms  draw ' + st.drawMs.toFixed(2) + 'ms  dirt ' + (st.coverage * 100).toFixed(0) + '%  green ' + (st.greenCoverage * 100).toFixed(0) + '%\n' +
+      'sim ' + st.simMs.toFixed(2) + 'ms  draw ' + st.drawMs.toFixed(2) + 'ms  dirt ' + (st.coverage * 100).toFixed(0) + '/' + (st.fill * 100).toFixed(0) + '%  flowers ' + (st.greenCoverage * 100).toFixed(0) + '%\n' +
       't ' + st.elapsed.toFixed(1) + 's  heartbeat ' + st.frames;
   }
 
@@ -457,6 +561,7 @@
       var o = {}; for (var kk in DEFAULTS) { o[kk] = DEFAULTS[kk]; }
       if (opts) { for (var k2 in opts) { if (opts[k2] !== undefined) { o[k2] = opts[k2]; } } }
       var s = S = makeState(o);
+      s.fillFrac = o.fill[0] + rnd() * (o.fill[1] - o.fill[0]);
       buildDom(s);
       layout(s, true);
       s.t0 = now(); s.running = true;
@@ -489,8 +594,9 @@
         fps: avg ? 1000 / avg : 0, avgFrameMs: avg, p95FrameMs: st.p95,
         simMs: st.simMs, drawMs: st.drawMs, longFrames: st.longFrames,
         frames: s.frames, elapsed: (now() - s.t0) / 1000,
-        coverage: s.coverage, greenCoverage: s.greenCov,
-        particles: s.particles.length, tips: s.tips.length
+        coverage: s.coverage, fill: s.fillFrac, greenCoverage: s.greenCov,
+        particles: s.particles.length, tips: s.tips.length,
+        vines: s.vines.filter(function (v) { return !v.done; }).length
       };
     },
     // Heartbeat for the extension spikes: call from outside (e.g. WKWebView.evaluateJavaScript)
