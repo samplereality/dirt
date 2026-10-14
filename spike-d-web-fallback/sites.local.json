@@ -1,0 +1,7 @@
+[
+  { "name": "local open", "category": "self-test", "url": "http://localhost:8787/test/open" },
+  { "name": "local XFO DENY", "category": "self-test", "url": "http://localhost:8787/test/xfo" },
+  { "name": "local XFO SAMEORIGIN", "category": "self-test", "url": "http://localhost:8787/test/sameorigin" },
+  { "name": "local CSP none", "category": "self-test", "url": "http://localhost:8787/test/csp" },
+  { "name": "local heavy (Spike 0 page)", "category": "self-test", "url": "http://localhost:8787/test/heavy" }
+]

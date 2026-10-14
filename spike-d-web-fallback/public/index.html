@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dirt — bury a web page</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.4 -apple-system, system-ui, sans-serif; background: #f4efe6; color: #222; }
+  form { display: flex; gap: 8px; padding: 12px; padding-top: max(12px, env(safe-area-inset-top)); background: #fff; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 5; }
+  input[type=url] { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border: 1px solid #bbb; border-radius: 8px; }
+  button { font: inherit; font-weight: 600; padding: 10px 14px; border: 0; border-radius: 8px; background: #6b4426; color: #fff; }
+  #status { padding: 8px 12px; font-size: 14px; color: #555; min-height: 2em; }
+  #stage { position: relative; height: calc(100vh - 110px); overflow: auto; -webkit-overflow-scrolling: touch; background: #fff; border-top: 1px solid #ddd; }
+  #stage iframe { width: 100%; height: 100%; border: 0; display: block; }
+  #stage img { width: 100%; height: auto; display: block; }
+  .intro { padding: 24px 16px; max-width: 42em; }
+  label.mode { font-size: 13px; color: #666; display: flex; align-items: center; gap: 4px; }
+  #bury { position: fixed; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 6; border-radius: 999px; padding: 14px 22px; box-shadow: 0 4px 16px rgba(0,0,0,.3); display: none; }
+</style>
+</head>
+<body>
+<form id="f">
+  <input id="url" type="url" placeholder="Paste a link…" required autocomplete="off" inputmode="url">
+  <button type="submit">Load</button>
+</form>
+<div id="status">
+  <label class="mode">Mode <select id="mode"><option value="auto">auto (iframe if allowed, else screenshot)</option><option value="shot">screenshot</option><option value="iframe">iframe (force)</option></select></label>
+</div>
+<div id="stage"><div class="intro"><p><b>Dirt</b> buries a web page under shovelfuls of soil, then lets a garden grow over it.</p><p>Paste a link above. If the site allows framing you get the live page; otherwise this server takes a full-page screenshot and Dirt buries that.</p></div></div>
+<button id="bury">Bury</button>
+<script src="/dirt-core.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), status = $('status'), bury = $('bury');
+  let loaded = false;
+  function say(msg) { status.insertAdjacentHTML('beforeend', '<div>' + msg + '</div>'); }
+
+  $('f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (window.Dirt && Dirt.running) Dirt.stop();
+    const url = $('url').value.trim(), mode = $('mode').value;
+    status.querySelectorAll('div').forEach(d => d.remove());
+    stage.innerHTML = ''; bury.style.display = 'none'; loaded = false;
+    try {
+      let useFrame = mode === 'iframe';
+      if (mode === 'auto') {
+        say('Checking headers…');
+        const p = await (await fetch('/api/probe?url=' + encodeURIComponent(url))).json();
+        if (p.error) throw new Error(p.error);
+        say((p.frameable ? 'Framing allowed' : 'Framing blocked') + ' — ' + p.reason + ' (' + p.status + ', ' + p.ms + ' ms)');
+        useFrame = p.frameable;
+      }
+      if (useFrame) {
+        const fr = document.createElement('iframe');
+        fr.src = url; fr.referrerPolicy = 'no-referrer';
+        fr.addEventListener('load', () => { say('iframe loaded (note: a blocked frame also fires load — judge by eye).'); });
+        stage.appendChild(fr);
+      } else {
+        say('Taking a full-page screenshot…');
+        const t0 = performance.now();
+        const r = await fetch('/api/shot?url=' + encodeURIComponent(url));
+        if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+        const blob = await r.blob();
+        const img = new Image(); img.src = URL.createObjectURL(blob); img.alt = 'Screenshot of ' + url;
+        stage.appendChild(img);
+        say('Screenshot ' + r.headers.get('x-dirt-width') + '×' + r.headers.get('x-dirt-height') + ' in ' + r.headers.get('x-dirt-ms') + ' ms server, ' + Math.round(performance.now() - t0) + ' ms total.');
+      }
+      loaded = true; bury.style.display = 'block';
+    } catch (err) { say('Failed: ' + err.message); }
+  });
+
+  bury.addEventListener('click', () => {
+    if (Dirt.running) { Dirt.stop(); bury.textContent = 'Bury'; return; }
+    // Dirt is fixed to this page's viewport, so it sits above the iframe or the scrolled screenshot.
+    Dirt.start({ debug: true });
+    bury.textContent = 'Clear';
+  });
+</script>
+</body>
+</html>

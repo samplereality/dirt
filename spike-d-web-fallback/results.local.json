@@ -1,0 +1,137 @@
+[
+  {
+    "name": "local open",
+    "category": "self-test",
+    "url": "http://localhost:8787/test/open",
+    "probe": {
+      "url": "http://localhost:8787/test/open",
+      "finalUrl": "http://localhost:8787/test/open",
+      "status": 200,
+      "ms": 76,
+      "frameable": true,
+      "reason": "no framing restrictions in headers",
+      "xFrameOptions": null,
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "http://localhost:8787/test/open",
+      "fullPage": true,
+      "ms": 3465,
+      "width": 390,
+      "height": 2809,
+      "title": "",
+      "finalUrl": "http://localhost:8787/test/open",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": true
+    }
+  },
+  {
+    "name": "local XFO DENY",
+    "category": "self-test",
+    "url": "http://localhost:8787/test/xfo",
+    "probe": {
+      "url": "http://localhost:8787/test/xfo",
+      "finalUrl": "http://localhost:8787/test/xfo",
+      "status": 200,
+      "ms": 5,
+      "frameable": false,
+      "reason": "X-Frame-Options DENY",
+      "xFrameOptions": "DENY",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "http://localhost:8787/test/xfo",
+      "fullPage": true,
+      "ms": 1841,
+      "width": 390,
+      "height": 2788,
+      "title": "",
+      "finalUrl": "http://localhost:8787/test/xfo",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": true
+    }
+  },
+  {
+    "name": "local XFO SAMEORIGIN",
+    "category": "self-test",
+    "url": "http://localhost:8787/test/sameorigin",
+    "probe": {
+      "url": "http://localhost:8787/test/sameorigin",
+      "finalUrl": "http://localhost:8787/test/sameorigin",
+      "status": 200,
+      "ms": 4,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "http://localhost:8787/test/sameorigin",
+      "fullPage": true,
+      "ms": 1874,
+      "width": 390,
+      "height": 2833,
+      "title": "",
+      "finalUrl": "http://localhost:8787/test/sameorigin",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": true
+    }
+  },
+  {
+    "name": "local CSP none",
+    "category": "self-test",
+    "url": "http://localhost:8787/test/csp",
+    "probe": {
+      "url": "http://localhost:8787/test/csp",
+      "finalUrl": "http://localhost:8787/test/csp",
+      "status": 200,
+      "ms": 7,
+      "frameable": false,
+      "reason": "CSP frame-ancestors 'none'",
+      "xFrameOptions": null,
+      "frameAncestors": "'none'"
+    },
+    "shot": {
+      "url": "http://localhost:8787/test/csp",
+      "fullPage": true,
+      "ms": 1765,
+      "width": 390,
+      "height": 2788,
+      "title": "",
+      "finalUrl": "http://localhost:8787/test/csp",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": true
+    }
+  },
+  {
+    "name": "local heavy (Spike 0 page)",
+    "category": "self-test",
+    "url": "http://localhost:8787/test/heavy",
+    "probe": {
+      "url": "http://localhost:8787/test/heavy",
+      "finalUrl": "http://localhost:8787/test/heavy",
+      "status": 200,
+      "ms": 8,
+      "frameable": true,
+      "reason": "no framing restrictions in headers",
+      "xFrameOptions": null,
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "http://localhost:8787/test/heavy",
+      "fullPage": true,
+      "ms": 9346,
+      "width": 390,
+      "height": 12000,
+      "title": "Dirt — Spike 0 heavy test page",
+      "finalUrl": "http://localhost:8787/test/heavy",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": true
+    }
+  }
+]

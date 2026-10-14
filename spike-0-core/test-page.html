@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dirt — Spike 0 heavy test page</title>
+<style>
+  /* Deliberately hostile host-page CSS: global resets, animations, transforms, high z-index. */
+  * { box-sizing: border-box; }
+  div, canvas { position: relative; z-index: 1; opacity: .999; }
+  body { margin: 0; font: 17px/1.5 Georgia, serif; background: #fbfaf7; color: #222; }
+  header { position: sticky; top: 0; z-index: 9999; background: #111; color: #fff; padding: 12px 16px; display: flex; gap: 12px; align-items: center; }
+  header .ticker { flex: 1; overflow: hidden; white-space: nowrap; }
+  header .ticker span { display: inline-block; animation: slide 12s linear infinite; }
+  @keyframes slide { from { transform: translateX(100%) } to { transform: translateX(-100%) } }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .ad { height: 120px; margin: 18px 0; border-radius: 6px; background: linear-gradient(90deg,#ff5f6d,#ffc371,#47e3ff,#ff5f6d); background-size: 300% 100%; animation: shimmer 2.2s linear infinite; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold; letter-spacing:.1em; }
+  @keyframes shimmer { to { background-position: 300% 0 } }
+  .spin { width: 64px; height: 64px; border-radius: 50%; border: 8px solid #ddd; border-top-color: #e33; animation: spin .8s linear infinite; margin: 12px auto; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  figure { margin: 18px 0; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 4px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .grid div { aspect-ratio: 1; background: conic-gradient(from var(--a, 0deg), #c33, #3c3, #33c, #c33); animation: hue 3s linear infinite; }
+  @keyframes hue { to { filter: hue-rotate(360deg) } }
+  .sticky-cta { position: fixed; bottom: 0; left: 0; right: 0; z-index: 2147483000; background: #ffeb3b; padding: 12px 16px; text-align: center; font-weight: bold; }
+  #bury { font: inherit; font-weight: bold; padding: 8px 14px; border-radius: 999px; border: 0; background: #6b4426; color: #fff; }
+  video { width: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <button id="bury">Bury</button>
+  <div class="ticker"><span>BREAKING: a sticky header with an infinite marquee, animated ads, a hue-rotating image grid and a fixed call-to-action — the sort of page Dirt has to cover.</span></div>
+</header>
+<main>
+  <h1>A heavy page for Dirt to bury</h1>
+  <p>This page exists to stress the overlay: it has several hundred DOM nodes, five continuously animating regions, large images, a sticky header and a fixed bottom bar at a very high z-index. Tap <b>Bury</b> above.</p>
+  <div class="ad">ADVERTISEMENT</div>
+  <div class="spin"></div>
+  <div id="content"></div>
+</main>
+<div class="sticky-cta">Subscribe now — this bar sits at z-index 2147483000</div>
+<script src="../dirt-core.js"></script>
+<script>
+  // Generate a long article with large procedurally-drawn images (no network needed).
+  (function () {
+    var c = document.getElementById('content'), html = '';
+    function img(seed) {
+      var cv = document.createElement('canvas'); cv.width = 1200; cv.height = 800;
+      var x = cv.getContext('2d');
+      for (var i = 0; i < 400; i++) {
+        x.fillStyle = 'hsl(' + ((seed * 37 + i * 13) % 360) + ',70%,' + (40 + (i % 5) * 10) + '%)';
+        x.beginPath(); x.arc((seed * 97 + i * 211) % 1200, (seed * 31 + i * 137) % 800, 20 + (i % 9) * 15, 0, 6.3); x.fill();
+      }
+      return cv.toDataURL('image/jpeg', 0.8);
+    }
+    for (var s = 0; s < 14; s++) {
+      html += '<h2>Section ' + (s + 1) + '</h2>';
+      for (var p = 0; p < 4; p++) {
+        html += '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>';
+      }
+      html += '<figure><img src="' + img(s) + '" alt=""><figcaption>Figure ' + (s + 1) + '</figcaption></figure>';
+      if (s % 2) { html += '<div class="ad">ADVERTISEMENT ' + s + '</div>'; }
+      if (s % 3 === 0) { html += '<div class="grid">' + '<div></div>'.repeat(9) + '</div>'; }
+    }
+    c.innerHTML = html;
+  })();
+  document.getElementById('bury').addEventListener('click', function () {
+    Dirt.start({ debug: true, onPhase: function (p) { console.log('[dirt] phase', p); } });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+node_modules/
+.DS_Store
+xcuserdata/
+*.xcodeproj
+spike-d-web-fallback/cache/

@@ -1,0 +1,84 @@
+# XcodeGen spec for the Dirt iOS host app plus the three extension spikes.
+#   brew install xcodegen && cd ios && xcodegen generate && open Dirt.xcodeproj
+# Nothing here names a Team ID: set DEVELOPMENT_TEAM (and optionally BUNDLE_ID_PREFIX) in Config.xcconfig.
+name: Dirt
+options:
+  bundleIdPrefix: org.dirtproject
+  deploymentTarget:
+    iOS: "16.4"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+configFiles:
+  Debug: Config.xcconfig
+  Release: Config.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1,2"
+    GENERATE_INFOPLIST_FILE: NO
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  # ---------------------------------------------------------------- host app (also Spike C)
+  Dirt:
+    type: application
+    platform: iOS
+    sources:
+      - path: Dirt
+      - path: ../spike-c-in-app-browser/DirtBrowser
+      - path: ../dirt-core.js
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).dirt
+        INFOPLIST_FILE: Dirt/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Dirt/Dirt.entitlements
+    dependencies:
+      - target: BuryWithDirt
+      - target: DirtSafariExtension
+      - target: ShareToDirt
+
+  # ---------------------------------------------------------------- Spike A: Safari Action extension (share sheet)
+  BuryWithDirt:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../spike-a-ios-action-extension/BuryWithDirt
+        excludes: ["Resources/**"]
+      - path: ../spike-a-ios-action-extension/BuryWithDirt/Resources
+        buildPhase: resources
+        type: group
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).dirt.bury
+        INFOPLIST_FILE: ../spike-a-ios-action-extension/BuryWithDirt/Info.plist
+
+  # ---------------------------------------------------------------- Spike B: Safari Web Extension (MV3)
+  DirtSafariExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../spike-b-safari-web-extension/DirtSafariExtension
+      - path: ../spike-b-safari-web-extension/extension
+        buildPhase: resources
+        type: group
+      - path: ../dirt-core.js
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).dirt.webext
+        INFOPLIST_FILE: ../spike-b-safari-web-extension/DirtSafariExtension/Info.plist
+
+  # ---------------------------------------------------------------- Spike C: share extension that hands a URL to the app
+  ShareToDirt:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../spike-c-in-app-browser/ShareToDirt
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).dirt.share
+        INFOPLIST_FILE: ../spike-c-in-app-browser/ShareToDirt/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ../spike-c-in-app-browser/ShareToDirt/ShareToDirt.entitlements
