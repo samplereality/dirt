@@ -20,7 +20,7 @@ xcodegen generate
 open Dirt.xcodeproj
 ```
 
-Set your Team ID in `Config.xcconfig` (`DEVELOPMENT_TEAM = ABCDE12345`) — do not commit it. The project never embeds a Team ID, so it can be regenerated under the colleague's account later. The one team-bound resource is the App Group `group.<prefix>.dirt`, which Xcode registers automatically when signing is automatic; it transfers with the app.
+Set your Team ID in `ios/Local.xcconfig` (`DEVELOPMENT_TEAM = ABCDE12345`); it is gitignored and included by `Config.xcconfig`. The project never embeds a Team ID, so it can be regenerated under the colleague's account later. The one team-bound resource is the App Group `group.<prefix>.dirt`, which Xcode registers automatically when signing is automatic; it transfers with the app.
 
 Regenerate `spike-a-ios-action-extension/BuryWithDirt/Resources/Action.js` with `sh build.sh` from the repo root whenever `dirt-core.js` changes (the Action extension needs the core inlined into a single file).
 

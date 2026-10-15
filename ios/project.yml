@@ -1,6 +1,6 @@
 # XcodeGen spec for the Dirt iOS host app plus the three extension spikes.
 #   brew install xcodegen && cd ios && xcodegen generate && open Dirt.xcodeproj
-# Nothing here names a Team ID: set DEVELOPMENT_TEAM (and optionally BUNDLE_ID_PREFIX) in Config.xcconfig.
+# Nothing here names a Team ID: set DEVELOPMENT_TEAM (and optionally BUNDLE_ID_PREFIX) in Local.xcconfig.
 name: Dirt
 options:
   bundleIdPrefix: org.dirtproject

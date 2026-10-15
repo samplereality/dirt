@@ -1,5 +1,7 @@
 // Per-developer signing. Deliberately NOT a specific team so the project can move to another
 // Apple Developer account (the eventual App Store release goes through a colleague's account).
-// Fill in your Team ID locally; do not commit it.
+// Put your Team ID in ios/Local.xcconfig (gitignored), e.g. `DEVELOPMENT_TEAM = ABCDE12345`.
 DEVELOPMENT_TEAM =
 BUNDLE_ID_PREFIX = org.dirtproject
+
+#include? "Local.xcconfig"
