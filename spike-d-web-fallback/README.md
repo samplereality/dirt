@@ -8,7 +8,9 @@ takes a full-page iPhone-sized screenshot; Dirt then buries whichever one is on 
 npm install
 npm run fallback                       # http://localhost:8787
 ALLOW_LOCAL=1 npm run fallback         # also allow localhost targets (needed for the self-test)
+npx playwright install chromium        # once; or skip it and use PW_CHANNEL=chrome below
 npm run probe                          # run sites.json → results.json + RESULTS.md
+PW_CHANNEL=chrome npm run probe        # same, driving the installed Google Chrome (no Playwright download needed)
 ALLOW_LOCAL=1 node spike-d-web-fallback/probe-sites.mjs spike-d-web-fallback/sites.local.json   # offline self-test
 ```
 

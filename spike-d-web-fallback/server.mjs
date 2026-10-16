@@ -2,6 +2,7 @@
 //
 //   node spike-d-web-fallback/server.mjs            # http://localhost:8787
 //   ALLOW_LOCAL=1 node spike-d-web-fallback/server.mjs   # also allow localhost targets (for the probe harness)
+//   PW_CHANNEL=chrome npm run probe                      # drive the machine's own Google Chrome instead of Playwright's download
 //
 // Endpoints (all GET):
 //   /                      the paste-a-URL page
@@ -33,10 +34,13 @@ fs.mkdirSync(CACHE, { recursive: true });
 let browserPromise = null;
 function browser() {
   if (!browserPromise) {
-    browserPromise = chromium.launch().catch(e => {
+    // PW_CHANNEL=chrome (or msedge) uses the browser already installed on the machine instead of
+    // Playwright's own download, which is handy when `npx playwright install` misbehaves.
+    const channel = process.env.PW_CHANNEL || undefined;
+    browserPromise = chromium.launch(channel ? { channel } : {}).catch(e => {
       browserPromise = null; // don't cache a failed launch; the next call retries
       if (/Executable doesn't exist/.test(e.message)) {
-        throw new Error("headless Chromium is not installed: run `npx playwright install chromium` once, then retry");
+        throw new Error("headless Chromium is not installed: run `npx playwright install chromium` once, or set PW_CHANNEL=chrome to use the installed Google Chrome, then retry");
       }
       throw e;
     });
