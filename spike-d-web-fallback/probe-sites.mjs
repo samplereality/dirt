@@ -23,6 +23,7 @@ for (const site of sites) {
   const p = row.probe, s = row.shot;
   process.stderr.write(`${p.error ? 'probe ERR ' + p.error : (p.frameable ? 'frameable' : 'BLOCKED') + ' (' + p.reason + ')'} | ${s.error ? 'shot ERR ' + s.error : s.width + 'x' + s.height + ' in ' + s.ms + 'ms'}\n`);
   results.push(row);
+  if (s.error && /not installed/.test(s.error)) { process.stderr.write('\nStopping: install the browser first, then re-run.\n'); await shutdown(); process.exit(1); }
 }
 
 const resultsName = outBase === 'results' ? 'results' : `results.${outBase}`;

@@ -31,7 +31,18 @@ fs.mkdirSync(CACHE, { recursive: true });
 
 // ---------------------------------------------------------------- browser pool (one browser, N pages)
 let browserPromise = null;
-function browser() { return (browserPromise ||= chromium.launch()); }
+function browser() {
+  if (!browserPromise) {
+    browserPromise = chromium.launch().catch(e => {
+      browserPromise = null; // don't cache a failed launch; the next call retries
+      if (/Executable doesn't exist/.test(e.message)) {
+        throw new Error("headless Chromium is not installed: run `npx playwright install chromium` once, then retry");
+      }
+      throw e;
+    });
+  }
+  return browserPromise;
+}
 export async function shutdown() { if (browserPromise) { const b = await browserPromise; browserPromise = null; await b.close(); } }
 const MAX_CONCURRENT = 2;
 let active = 0; const queue = [];
@@ -85,10 +96,11 @@ export async function screenshot(url, { fullPage = true } = {}) {
   }
   await slot();
   const t0 = Date.now();
-  const context = await (await browser()).newContext({ ...DEVICE, ignoreHTTPSErrors: true, locale: 'en-US' });
-  const page = await context.newPage();
   const info = { url, fullPage, ms: 0, width: 0, height: 0, title: '', finalUrl: '', error: null, waitUsed: 'load' };
+  let context = null;
   try {
+    context = await (await browser()).newContext({ ...DEVICE, ignoreHTTPSErrors: true, locale: 'en-US' });
+    const page = await context.newPage();
     page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
     try { await page.goto(url, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT_MS }); info.waitUsed = 'networkidle'; }
     catch { try { await page.goto(url, { waitUntil: 'load', timeout: NAV_TIMEOUT_MS }); } catch (e) { info.error = 'navigation: ' + e.message.split('\n')[0]; } }
@@ -111,8 +123,8 @@ export async function screenshot(url, { fullPage = true } = {}) {
     info.error = (info.error ? info.error + '; ' : '') + e.message.split('\n')[0];
   } finally {
     info.ms = Date.now() - t0;
-    await context.close().catch(() => {});
-    release();
+    if (context) await context.close().catch(() => {});
+    release();   // always free the queue slot, even when the browser failed to launch
   }
   if (!info.error) fs.writeFileSync(meta, JSON.stringify(info));
   return { file: info.error ? null : file, ...info, cached: false };
