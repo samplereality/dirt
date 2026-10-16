@@ -63,11 +63,11 @@ targets:
     platform: iOS
     sources:
       - path: ../spike-b-safari-web-extension/DirtSafariExtension
+      # extension/ already holds a copy of dirt-core.js (kept in sync by build.sh) so the same
+      # folder loads unpackaged in Chrome and Firefox; do not add ../dirt-core.js here as well.
       - path: ../spike-b-safari-web-extension/extension
         buildPhase: resources
         type: group
-      - path: ../dirt-core.js
-        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).dirt.webext
