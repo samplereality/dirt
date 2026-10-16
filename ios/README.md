@@ -20,7 +20,14 @@ xcodegen generate
 open Dirt.xcodeproj
 ```
 
-Set your Team ID in `ios/Local.xcconfig` (`DEVELOPMENT_TEAM = ABCDE12345`); it is gitignored and included by `Config.xcconfig`. The project never embeds a Team ID, so it can be regenerated under the colleague's account later. The one team-bound resource is the App Group `group.<prefix>.dirt`, which Xcode registers automatically when signing is automatic; it transfers with the app.
+## Signing
+
+A free Apple ID is enough to run on your own iPhone: in Xcode → Settings → Accounts add the Apple ID, then in each target's **Signing & Capabilities** tab pick "<Your Name> (Personal Team)". Alternatively put the Team ID in `ios/Local.xcconfig` (`DEVELOPMENT_TEAM = ABCDE12345`), which is gitignored and included by `Config.xcconfig`. The project never embeds a Team ID, so it regenerates cleanly under the colleague's account later.
+
+- "Your team has no devices": plug the iPhone in, select it as the run destination, click **Try Again**. Xcode registers the device automatically.
+- "Bundle identifier unavailable": change `BUNDLE_ID_PREFIX` in `Config.xcconfig` (or override it in `Local.xcconfig`) and regenerate.
+- **App Groups** (used only by Spike C's share-sheet handoff) require a paid team, so the entitlements are commented out in `project.yml`. On a paid team, uncomment the two `CODE_SIGN_ENTITLEMENTS` lines and regenerate; Xcode registers `group.<prefix>.dirt` automatically and it transfers with the app.
+- A Personal Team build expires after 7 days; re-run from Xcode to refresh.
 
 Regenerate `spike-a-ios-action-extension/BuryWithDirt/Resources/Action.js` with `sh build.sh` from the repo root whenever `dirt-core.js` changes (the Action extension needs the core inlined into a single file).
 

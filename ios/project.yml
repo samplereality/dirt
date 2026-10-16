@@ -34,7 +34,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).dirt
         INFOPLIST_FILE: Dirt/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Dirt/Dirt.entitlements
+        # App Groups (Spike C share-sheet handoff) need a paid Apple Developer team; a free
+        # Personal Team cannot sign them. Uncomment on a paid team, in both places:
+        # CODE_SIGN_ENTITLEMENTS: Dirt/Dirt.entitlements
     dependencies:
       - target: BuryWithDirt
       - target: DirtSafariExtension
@@ -81,4 +83,4 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).dirt.share
         INFOPLIST_FILE: ../spike-c-in-app-browser/ShareToDirt/Info.plist
-        CODE_SIGN_ENTITLEMENTS: ../spike-c-in-app-browser/ShareToDirt/ShareToDirt.entitlements
+        # CODE_SIGN_ENTITLEMENTS: ../spike-c-in-app-browser/ShareToDirt/ShareToDirt.entitlements
