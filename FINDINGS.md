@@ -11,14 +11,16 @@ Date: 2026-10-14. Author of the spikes: Claude, working from Mark Sample's proje
   CSS, and handles viewport resizes. Screenshots in `docs/`.
 - **Every delivery mechanism is scaffolded and injects the same file unchanged.** Spikes A, B and C
   are complete Xcode targets described by one XcodeGen spec; Spike D is a working server + page.
-- **Device results (Mark, iPhone, 2026-10-16).** All three iOS routes built, installed under a
+- **Device results (Mark, iPhone 16 Pro, iOS 27.0.1, 2026-10-16).** All three iOS routes built, installed under a
   free Personal Team, and ran without errors. **Spike A's key question is answered: yes** — the
   animation started from the Action extension's `finalize()` ran its full ~35 s life after the
   share sheet closed (heartbeat reached 2130 frames, i.e. bury plus bushes). On nytimes.com the
   HUD read 57–60 fps, 16–17 ms per frame, p95 flat; the success criterion is met. Rotation
   exposed two bugs (settled dirt vanished; dirt and flowers stretched oblong), both fixed since.
 - **Still unverified:** the live 22-site framing/screenshot survey (no outbound internet in the
-  build container), desktop Firefox, and the exact iPhone model/iOS version for the record.
+  build container) and desktop Firefox. A note that the phone "could not rotate" while the
+  extension ran turned out to affect every app, so it is the phone (orientation lock or a
+  reboot), not Dirt; re-check after the resize fixes.
 
 ## Spike 0 — core animation harness: **works**
 

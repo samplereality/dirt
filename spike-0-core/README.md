@@ -40,7 +40,7 @@ compositing rather than draw calls.)
 
 Timeline at every setting: bury ≈ 16 s, then flowers ≈ 13 s, bushes ≈ 17 s or vines ≈ 27 s.
 
-**On a real iPhone** (Mark, 2026-10-16, nytimes.com via the share-sheet extension): 57–60 fps, 16–17 ms per frame, p95 flat, through both phases.
+**On a real iPhone 16 Pro, iOS 27.0.1** (Mark, 2026-10-16, nytimes.com via the share-sheet extension): 57–60 fps, 16–17 ms per frame, p95 flat, through both phases.
 
 Reading the numbers: the JavaScript cost of the simulation and drawing is small (≤ 4 ms even at
 8× throttle). The frame-rate drop under throttling comes from the browser re-rasterising and
