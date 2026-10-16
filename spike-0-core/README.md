@@ -22,6 +22,7 @@ node spike-0-core/bench.mjs --throttle 8 --baseline   # the host page alone, no 
   - *Vines* (three to five per side) climb the left and right edges from the soil line to the top of the window along a sine path, with alternating heart-ish leaves, trumpet flowers, and curling tendrils reaching inward, as if on a trellis.
   - *Bushes* rise from the soil line at regular intervals across the width, each to a height of 15–25 % of the viewport (`bushHeight` option): branching tips (max depth 4) with leaves along the way and a bloom in the bush's own colour at the end of every branch.
   The growth phase ends when that kind is finished (flowers at target density, vines at the top, bushes done branching); the loop then stops and the garden stays on screen.
+- **Resize**: a height-only change (address bar) keeps everything bottom-anchored, unscaled; a width change (rotation, window resize) replants the same run from scratch. The dirt layer is redrawn after any resize.
 - **Instrumentation**: `Dirt.stats()` returns fps, mean and p95 frame time, sim/draw ms, long-frame count, coverage, and a frame counter (`Dirt.ping()`) used as a heartbeat by the extension spikes. `debug: true` shows these in a HUD.
 
 ## Measured (headless Chromium, iPhone 14 emulation, 390×664 CSS px @2x, 190 DOM nodes + animations)
@@ -38,6 +39,8 @@ coarser grid or a 1× growth canvas made no difference on that version, which is
 compositing rather than draw calls.)
 
 Timeline at every setting: bury ≈ 16 s, then flowers ≈ 13 s, bushes ≈ 17 s or vines ≈ 27 s.
+
+**On a real iPhone** (Mark, 2026-10-16, nytimes.com via the share-sheet extension): 57–60 fps, 16–17 ms per frame, p95 flat, through both phases.
 
 Reading the numbers: the JavaScript cost of the simulation and drawing is small (≤ 4 ms even at
 8× throttle). The frame-rate drop under throttling comes from the browser re-rasterising and

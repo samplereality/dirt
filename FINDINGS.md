@@ -11,11 +11,14 @@ Date: 2026-10-14. Author of the spikes: Claude, working from Mark Sample's proje
   CSS, and handles viewport resizes. Screenshots in `docs/`.
 - **Every delivery mechanism is scaffolded and injects the same file unchanged.** Spikes A, B and C
   are complete Xcode targets described by one XcodeGen spec; Spike D is a working server + page.
-- **What this phase could not verify** (no iOS toolchain, no real device, and no outbound internet
-  in the build container): on-device frame rate, whether an animation started from an Action
-  extension's `finalize()` survives the extension's dismissal, Safari's extension-enabling friction,
-  and the live 22-site framing/screenshot survey. Each has a ready-to-run checklist below; the
-  device tests are an afternoon with an iPhone and Xcode.
+- **Device results (Mark, iPhone, 2026-10-16).** All three iOS routes built, installed under a
+  free Personal Team, and ran without errors. **Spike A's key question is answered: yes** — the
+  animation started from the Action extension's `finalize()` ran its full ~35 s life after the
+  share sheet closed (heartbeat reached 2130 frames, i.e. bury plus bushes). On nytimes.com the
+  HUD read 57–60 fps, 16–17 ms per frame, p95 flat; the success criterion is met. Rotation
+  exposed two bugs (settled dirt vanished; dirt and flowers stretched oblong), both fixed since.
+- **Still unverified:** the live 22-site framing/screenshot survey (no outbound internet in the
+  build container), desktop Firefox, and the exact iPhone model/iOS version for the record.
 
 ## Spike 0 — core animation harness: **works**
 
@@ -32,9 +35,16 @@ animating regions, 14 large images, a sticky header and a fixed bottom bar.
 On the earlier full-cover version, coarser cells (6 px) or a 1× growth canvas did not change the
 throttled numbers, so the throttled drop is the headless renderer's *software* compositing of a
 full-screen canvas, not Dirt's code (which stays under 4 ms per frame even at 8×).
-Phones composite on the GPU. The brief's criterion (≈ 60 fps on a recent iPhone over a heavy page)
-is therefore plausible, and the unthrottled profile supports it, but it is **not yet measured on a
-device**. To measure: `npm run serve`, open the test page on the phone, tap Bury, read the HUD.
+Phones composite on the GPU, and the device run bears that out: **on an iPhone over nytimes.com
+the HUD showed 57–60 fps and 16–17 ms per frame with a flat p95** through both the dirt and the
+plant phases. The brief's criterion is met.
+
+Resize behaviour, after the device test: a height-only change (Safari's address bar collapsing)
+keeps the pile and the plants anchored to the bottom edge without stretching; a width change
+(rotation, or a desktop window resize) replants from scratch with the same flora and fill line,
+because stretching the old pile and the vector plants to a new aspect ratio made them oblong.
+Replaying the drawn primitives into the new shape instead is Phase 2 work. The dirt layer is now
+redrawn after any resize (resizing a canvas clears it, which is why a settled pile vanished).
 
 Design decisions that held up:
 
@@ -56,7 +66,8 @@ Design decisions that held up:
   `div { position: relative; z-index: 1 }` and `* { opacity: .999 }` rules had no effect.
 
 Open issues: the HUD covers the top-left corner (debug only); the piece has no end-state behaviour
-yet (loop idles with the garden on screen); `prefers-reduced-motion` is ignored; the overlay is
+yet (loop idles with the garden on screen, and the HUD clock keeps ticking so a stopped heartbeat
+is not mistaken for a dead loop); `prefers-reduced-motion` is ignored; the overlay is
 `pointer-events: none` so the reader can still scroll the buried page, which may or may not be wanted.
 
 ## Spike A — iOS Action extension: **scaffolded, device test pending (top priority)**
@@ -67,10 +78,11 @@ What is built: a no-UI Action extension (`com.apple.ui-services`, web-page activ
 native handler returns immediately, so the share sheet closes at once.
 
 The key question — does a `requestAnimationFrame` loop started in `finalize()` keep running after
-the extension is dismissed? — **can only be answered on a device**. Reasoning from how Safari
-implements it: the preprocessing file is injected into the page's JavaScript context and its
-closures live in the page, so the loop should persist like any page script. Two risks are
-designed for:
+the extension is dismissed? — **Answered on a device: yes.** In direct mode (no script-tag
+fallback needed), the loop ran until the garden was complete, about 35 s after the share sheet
+closed, on a heavy site at 57–60 fps. The preprocessing file is injected into the page's
+JavaScript context and its closures live in the page, so the loop persists like any page script.
+The two fallbacks remain in place in case a site or iOS release behaves differently:
 
 1. Safari tears down the injected context: switch `DIRT_INJECT_MODE` to `'script-tag'`, which
    copies the module source into the page's own world through an inline `<script>`. Sites with a
@@ -90,12 +102,12 @@ A plain MV3 extension (`action` + `activeTab` + `scripting.executeScript`), with
 the key they support. The Safari shell is a trivial `NSExtensionRequestHandling` class. The
 extension files are copied flat into the `.appex`, so `manifest.json` sits at the resource root.
 
-Verified: manifest and scripts are valid and minimal. Not verified: Safari's `activeTab`
-behaviour on iOS (it may still prompt per site the first time) and the enabling path
-(Settings → Apps → Safari → Extensions, then the puzzle-piece menu in the address bar). That is
-two or three more taps than the share sheet and lives in a menu many readers never open, which
-is why Spike A stays primary. Desktop Chrome and Firefox can load `extension/` unpacked in a
-minute; do that first — it tests the injected module in an isolated world with no Xcode at all.
+Verified: desktop Chrome loads `extension/` unpacked and runs the overlay (Chrome warns that
+`background.scripts` is a Manifest V2 key; it is there for Firefox and is harmless). On the
+iPhone the extension installed and ran. The enabling path (Settings → Apps → Safari → Extensions,
+then the puzzle-piece menu in the address bar) is two or three more taps than the share sheet and
+lives in a menu many readers never open, which is why Spike A stays primary. Not yet checked:
+desktop Firefox, and whether Safari prompts per site despite `activeTab`.
 
 ## Spike C — in-app browser: **scaffolded**
 
@@ -108,7 +120,9 @@ releases; the App Group handoff is the reliable fallback (reader taps the app ic
 
 Costs to weigh: the web view has its own cookie jar (paywalls and logins show their walls), no
 content blockers, and Apple's guideline 4.2 looks hard at apps that are "just a web view". This
-route is a transport for links from other apps, not the headline experience.
+route is a transport for links from other apps, not the headline experience. Verified on the
+iPhone: paste → Bury works. The App Group needed for the share-sheet handoff cannot be signed by
+a free Personal Team, so its entitlements are opt-in in `ios/project.yml` (paid team only).
 
 ## Spike D — web fallback: **server and page work; live survey pending**
 
@@ -131,11 +145,10 @@ block kept on, rate limiting, and a privacy note on the page.
 
 ## Recommended delivery mix for Phase 2
 
-1. **Spike A (share-sheet Action) as the primary iOS experience**, *conditional on the device test*.
-   One tap from Safari's Share menu is the lowest-friction path that reaches the live page.
-   Run the heartbeat test on nytimes.com, theguardian.com and a few CSP-strict sites before
-   investing further; if `finalize()` does not survive dismissal and the script-tag fallback is
-   CSP-blocked on the big sites, promote Spike B.
+1. **Spike A (share-sheet Action) as the primary iOS experience.** The device test passed: one
+   tap from Safari's Share menu reaches the live page, the animation survives the extension's
+   dismissal, and it holds 57–60 fps on nytimes.com. Worth repeating on a couple of CSP-strict
+   sites and after an iOS update, since this behaviour is undocumented by Apple.
 2. **Spike B (Web Extension) bundled in the same app** as the fallback that also gives desktop
    Chrome/Firefox/Safari for free. The same `extension/` folder can ship to the Chrome Web Store
    and AMO without an app at all, which widens the audience beyond iOS at little cost.

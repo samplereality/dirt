@@ -78,9 +78,9 @@
       particles: [], tips: [],
       shovelAcc: 0, shovelInterval: 70, shovelCells: 60,
       coverage: 0, greenCov: 0, filled: 0, tops: null, topFull: 0,
-      fillFrac: 0.58, targetTop: 0, dirtCells: 0, flora: 'flowers',
+      fillFrac: 0.58, fillActual: 0, targetTop: 0, topMean: 1e9, dirtCells: 0, flora: 'flowers',
       vines: [], bushes: [],
-      t0: 0, tPhase: 0, lastT: 0, frames: 0, raf: 0,
+      t0: 0, tPhase: 0, lastT: 0, frames: 0, raf: 0, hudTimer: 0,
       stats: { dts: new Float32Array(120), di: 0, dn: 0, simMs: 0, drawMs: 0, longFrames: 0, p95: 0 },
       running: false
     };
@@ -130,13 +130,20 @@
     var wh = viewportSize(s), cw = wh[0], ch = wh[1];
     var dpr = Math.min(root.devicePixelRatio || 1, s.opts.maxDpr);
     if (!first && cw === s.cw && ch === s.ch && dpr === s.dpr) { return; }
+    if (!first && cw !== s.cw) {
+      // Width changed: a rotation or a window resize. Stretching the pile and the plants to the
+      // new shape makes them oblong, so replant from scratch with the same flora and fill line.
+      replant(s);
+      return;
+    }
     var cs = s.opts.cellSize;
     var W = Math.max(8, Math.ceil(cw / cs)), H = Math.max(8, Math.ceil(ch / cs));
 
     // Dirt canvas is drawn at grid resolution and scaled up by the browser (pixel look, cheap).
     s.dirtCanvas.width = W * Math.min(dpr, 2); s.dirtCanvas.height = H * Math.min(dpr, 2);
-    // Growth canvas: device resolution, persistent. Preserve existing strokes across a resize.
-    var old = null;
+    // Growth canvas: device resolution, persistent. Keep existing strokes across a height change
+    // (the address bar collapsing or expanding) by anchoring them to the bottom edge, unscaled.
+    var old = null, oldCw = s.cw, oldCh = s.ch;
     if (!first && s.growCanvas.width) {
       old = root.document.createElement('canvas');
       old.width = s.growCanvas.width; old.height = s.growCanvas.height;
@@ -145,19 +152,19 @@
     s.growCanvas.width = Math.round(cw * dpr); s.growCanvas.height = Math.round(ch * dpr);
     s.gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     s.gctx.lineCap = 'round'; s.gctx.lineJoin = 'round';
-    if (old) { s.gctx.drawImage(old, 0, 0, cw, ch); }
+    if (old) { s.gctx.drawImage(old, 0, ch - oldCh, oldCw, oldCh); }
 
-    // Grid (re)allocation with nearest-neighbour resample so dirt survives a resize / toolbar collapse.
+    // Grid (re)allocation, bottom-anchored: rows are added or removed at the top only.
     var grid = new Uint8Array(W * H), green = new Uint8Array(W * H);
+    var dyCells = H - (s.H || H), dyPx = ch - (oldCh || ch);
     if (s.grid) {
       for (var y = 0; y < H; y++) {
-        var sy = Math.min(s.H - 1, Math.floor(y * s.H / H));
-        for (var x = 0; x < W; x++) {
-          var sx = Math.min(s.W - 1, Math.floor(x * s.W / W));
-          grid[y * W + x] = s.grid[sy * s.W + sx];
-          green[y * W + x] = s.green[sy * s.W + sx];
-        }
+        var sy = y - dyCells;
+        if (sy < 0 || sy >= s.H) { continue; }
+        grid.set(s.grid.subarray(sy * s.W, sy * s.W + Math.min(W, s.W)), y * W);
+        green.set(s.green.subarray(sy * s.W, sy * s.W + Math.min(W, s.W)), y * W);
       }
+      shiftY(s, dyPx, dyCells);
     }
     s.cw = cw; s.ch = ch; s.dpr = dpr; s.W = W; s.H = H; s.grid = grid; s.green = green; s.tops = new Int16Array(W);
     s.targetTop = Math.max(1, H - Math.round(H * s.fillFrac)); // row the dirt surface must reach
@@ -172,6 +179,28 @@
     var shovels = 300;
     s.shovelCells = Math.max(24, Math.round((W * (H - s.targetTop)) * 1.25 / shovels));
     s.shovelInterval = Math.max(16, s.opts.buryMs / shovels);
+
+    // Resizing a canvas clears it; the dirt layer is only redrawn while dirt is falling, so
+    // redraw it here or a settled pile vanishes on the first resize.
+    if (!first) { surfaceScan(s); drawDirt(s); }
+  }
+
+  // Move everything that remembers a vertical position when rows are added/removed at the top.
+  function shiftY(s, dyPx, dyCells) {
+    var i;
+    for (i = 0; i < s.particles.length; i++) { s.particles[i].y += dyCells; }
+    for (i = 0; i < s.tips.length; i++) { s.tips[i].y += dyPx; }
+    for (i = 0; i < s.vines.length; i++) { s.vines[i].y += dyPx; s.vines[i].py += dyPx; }
+    for (i = 0; i < s.bushes.length; i++) { s.bushes[i].sy += dyPx; s.bushes[i].top += dyPx; }
+  }
+
+  // Start the same run over (same flora, same fill line) in the current viewport.
+  function replant(s) {
+    var o = {}, k;
+    for (k in s.opts) { o[k] = s.opts[k]; }
+    o.flora = s.flora; o.fill = [s.fillFrac, s.fillFrac];
+    API.stop();
+    API.start(o);
   }
 
   // ---------------------------------------------------------------- dirt phase
@@ -182,9 +211,11 @@
   }
 
   function surfaceScan(s) { // tops[x] = row of highest dirt cell (H if empty); also fraction of columns full
-    var W = s.W, H = s.H, tops = s.tops || (s.tops = new Int16Array(W)), full = 0;
-    for (var x = 0; x < W; x++) { var t = columnTop(s, x); tops[x] = t; if (t <= s.targetTop) { full++; } }
+    var W = s.W, H = s.H, tops = s.tops || (s.tops = new Int16Array(W)), full = 0, sum = 0;
+    for (var x = 0; x < W; x++) { var t = columnTop(s, x); tops[x] = t; sum += t; if (t <= s.targetTop) { full++; } }
     s.topFull = full / W;
+    s.topMean = sum / W;
+    s.fillActual = 1 - s.topMean / H;
     return tops;
   }
 
@@ -280,12 +311,13 @@
     s.shovelAcc += dt;
     while (s.shovelAcc >= s.shovelInterval) {
       s.shovelAcc -= s.shovelInterval;
-      if (s.topFull < 1) { spawnShovel(s); }
+      // Count grains still in the air as landed, or the fill overshoots the line by a dozen rows.
+      if (s.topMean - s.particles.length / s.W > s.targetTop) { spawnShovel(s); }
     }
     stepParticles(s, k);
     settle(s);
     if ((s.frames & 7) === 0) { countFilled(s); surfaceScan(s); }
-    var done = (s.topFull >= 1 && s.particles.length === 0) || elapsed > s.opts.buryMs * 2.5;
+    var done = (s.topMean <= s.targetTop && s.particles.length === 0) || elapsed > s.opts.buryMs * 2.5;
     if (done) {
       // Tamp down: fill air pockets beneath the surface so the dirt reads as solid ground.
       var g = s.grid, W = s.W, H = s.H;
@@ -343,8 +375,6 @@
   function initGarden(s) {
     var cw = s.cw, ch = s.ch, growMs = s.opts.growMs;
     s.tips = []; s.vines = []; s.bushes = [];
-    var sum = 0; for (var x = 0; x < s.W; x++) { sum += s.tops[x]; }
-    s.fillFrac = 1 - (sum / s.W) / s.H;
     s.dirtCells = s.filled;
 
     // Vines: three to five per side, staggered, each climbing from the soil line to the top edge.
@@ -552,8 +582,8 @@
     var st = API.stats();
     return 'Dirt ' + VERSION + '  ' + s.phase + ' (' + s.flora + ')  ' + s.W + 'x' + s.H + ' cells @' + s.dpr + 'x\n' +
       'fps ' + st.fps.toFixed(0) + '  frame ' + st.avgFrameMs.toFixed(1) + 'ms  p95 ' + st.p95FrameMs.toFixed(1) + 'ms  long ' + st.longFrames + '\n' +
-      'sim ' + st.simMs.toFixed(2) + 'ms  draw ' + st.drawMs.toFixed(2) + 'ms  dirt ' + (st.coverage * 100).toFixed(0) + '/' + (st.fill * 100).toFixed(0) + '%  flowers ' + (st.greenCoverage * 100).toFixed(0) + '%\n' +
-      't ' + st.elapsed.toFixed(1) + 's  heartbeat ' + st.frames;
+      'sim ' + st.simMs.toFixed(2) + 'ms  draw ' + st.drawMs.toFixed(2) + 'ms  dirt ' + (st.fillActual * 100).toFixed(0) + '/' + (st.fill * 100).toFixed(0) + '%  flowers ' + (st.greenCoverage * 100).toFixed(0) + '%\n' +
+      't ' + st.elapsed.toFixed(1) + 's  heartbeat ' + st.frames + (s.running ? '' : '  (done; loop idle, clock still ticking)');
   }
 
   function onResize() { if (S && S.host) { layout(S, false); } }
@@ -580,12 +610,14 @@
       if (root.visualViewport) { root.visualViewport.addEventListener('resize', onResize); }
       setPhase(s, 'burying');
       s.raf = root.requestAnimationFrame(frame);
+      if (s.hud) { s.hudTimer = setInterval(function () { if (S === s && s.hud) { s.hud.textContent = hudText(s); } }, 1000); }
       return API;
     },
     stop: function () {
       var s = S; if (!s) { return API; }
       s.running = false;
       if (s.raf) { root.cancelAnimationFrame(s.raf); }
+      if (s.hudTimer) { clearInterval(s.hudTimer); }
       root.removeEventListener('resize', onResize);
       if (root.visualViewport) { root.visualViewport.removeEventListener('resize', onResize); }
       if (s.host && s.host.parentNode) { s.host.parentNode.removeChild(s.host); }
@@ -605,7 +637,7 @@
         fps: avg ? 1000 / avg : 0, avgFrameMs: avg, p95FrameMs: st.p95,
         simMs: st.simMs, drawMs: st.drawMs, longFrames: st.longFrames,
         frames: s.frames, elapsed: (now() - s.t0) / 1000,
-        coverage: s.coverage, fill: s.fillFrac, greenCoverage: s.greenCov,
+        coverage: s.coverage, fill: s.fillFrac, fillActual: s.fillActual, greenCoverage: s.greenCov,
         particles: s.particles.length, tips: s.tips.length,
         vines: s.vines.filter(function (v) { return !v.done; }).length
       };
