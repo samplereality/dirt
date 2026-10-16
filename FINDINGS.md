@@ -41,12 +41,19 @@ Phones composite on the GPU, and the device run bears that out: **on an iPhone o
 the HUD showed 57–60 fps and 16–17 ms per frame with a flat p95** through both the dirt and the
 plant phases. The brief's criterion is met.
 
-Resize behaviour, after the device test: a height-only change (Safari's address bar collapsing)
-keeps the pile and the plants anchored to the bottom edge without stretching; a width change
-(rotation, or a desktop window resize) replants from scratch with the same flora and fill line,
-because stretching the old pile and the vector plants to a new aspect ratio made them oblong.
-Replaying the drawn primitives into the new shape instead is Phase 2 work. The dirt layer is now
-redrawn after any resize (resizing a canvas clears it, which is why a settled pile vanished).
+Resize behaviour, after two rounds on the device: the first fix (replant on rotation) was judged
+wrong on the phone — "everything starts from scratch" — so the core now keeps the scene. Every
+plant primitive is recorded in a display list and replayed into the new shape at its original
+size; the pile is rebuilt from its old surface profile; a modest height-only change (the address
+bar) translates rather than scales. Spike A kept skewing after the first fix because the
+share-sheet injection context never delivers `resize` events, so the viewport size is now polled
+from the frame loop and a timer as well. (Resizing a canvas clears it, which is why a settled
+pile vanished in the first round; the dirt layer is redrawn after any resize.)
+
+Feel, after the device test ("falls too fast or too uniformly", "peaks too angular"): shovelfuls
+now vary in size and rhythm, clumps have individual gravity with a terminal velocity, the sand
+simulation ticks at 30 Hz under a 60 fps render (`simHz` option), and a shallower slide rule in
+the automaton rounds the mounds. Whether that lands on the phone is the next thing to look at.
 
 Design decisions that held up:
 
