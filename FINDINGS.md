@@ -22,7 +22,10 @@ Date: 2026-10-14. Author of the spikes: Claude, working from Mark Sample's proje
   login walls (Instagram, X), or app shells that render nothing without interaction (YouTube,
   Google Maps, Medium, Craigslist). Captures take 2–33 s. Screenshot-first is the right design,
   but the biggest news sites reject headless browsers outright.
-- **Still unverified:** desktop Firefox. A note that the phone "could not rotate" while the
+- **Spike B verified on all three browsers:** Chrome and Firefox (temporary add-on) on the
+  desktop, Safari on the iPhone, from the same `extension/` folder. Firefox showed the dirt
+  piling into spiky towers, which turned out to be a wide-window problem in the sand rules, not
+  a Firefox one; fixed (shovelfuls now stay phone-sized and arrive more often on wide windows). A note that the phone "could not rotate" while the
   extension ran turned out to affect every app, so it is the phone (orientation lock or a
   reboot), not Dirt; re-check after the resize fixes.
 
@@ -57,7 +60,11 @@ pile vanished in the first round; the dirt layer is redrawn after any resize.)
 Feel, after the device test ("falls too fast or too uniformly", "peaks too angular"): shovelfuls
 now vary in size and rhythm, clumps have individual gravity with a terminal velocity, the sand
 simulation ticks at 30 Hz under a 60 fps render (`simHz` option), and a shallower slide rule in
-the automaton rounds the mounds. Whether that lands on the phone is the next thing to look at.
+the automaton rounds the mounds. On a desktop-sized window (Firefox, 360 columns) the first
+version of that still piled into towers, because a shovelful scaled with the window and landed
+230 grains in one spot; shovelfuls are now capped at 80 grains and thrown more often instead,
+each clump spreads wider, and the peak-eroding rule fires twice as often. Checked at 1440×900
+and at phone size in the harness; whether the phone agrees is the next thing to look at.
 
 Design decisions that held up:
 
@@ -116,8 +123,9 @@ the key they support. The Safari shell is a trivial `NSExtensionRequestHandling`
 extension files are copied flat into the `.appex`, so `manifest.json` sits at the resource root.
 
 Verified: desktop Chrome loads `extension/` unpacked and runs the overlay (Chrome warns that
-`background.scripts` is a Manifest V2 key; it is there for Firefox and is harmless). On the
-iPhone the extension installed and ran. The enabling path (Settings → Apps → Safari → Extensions,
+`background.scripts` is a Manifest V2 key; it is there for Firefox and is harmless). Desktop
+Firefox loads the same folder as a temporary add-on and runs it (Firefox warns about the
+`service_worker` key instead). On the iPhone the extension installed and ran. The enabling path (Settings → Apps → Safari → Extensions,
 then the puzzle-piece menu in the address bar) is two or three more taps than the share sheet and
 lives in a menu many readers never open, which is why Spike A stays primary. Not yet checked:
 desktop Firefox, and whether Safari prompts per site despite `activeTab`.

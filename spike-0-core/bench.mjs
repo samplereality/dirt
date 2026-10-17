@@ -5,6 +5,7 @@
 //   node spike-0-core/bench.mjs --throttle 4   # 4x CPU slowdown (rough stand-in for a phone)
 //   node spike-0-core/bench.mjs --throttle 8 --baseline   # host page alone, no overlay
 //   node spike-0-core/bench.mjs --flora vines           # force one flora kind (flowers | vines | bushes)
+//   node spike-0-core/bench.mjs --desktop               # 1440x900 window instead of iPhone emulation
 //   node spike-0-core/bench.mjs --cell 3 --throttle 6 --json out.json --shots ./shots
 //
 // Headless Chromium on a server is NOT an iPhone; see FINDINGS.md for how to read these numbers.
@@ -24,7 +25,7 @@ await new Promise(r => server.listen(0, r));
 const port = server.address().port;
 
 const browser = await chromium.launch({ args: ['--enable-gpu-rasterization'] });
-const context = await browser.newContext({ ...devices['iPhone 14'] });
+const context = await browser.newContext(args.desktop ? { viewport: { width: 1440, height: 900 } } : { ...devices['iPhone 14'] });
 const page = await context.newPage();
 const cdp = await context.newCDPSession(page);
 if (throttle > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });

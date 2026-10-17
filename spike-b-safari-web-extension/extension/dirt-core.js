@@ -202,10 +202,11 @@
     s.img = s.octx.createImageData(W, H);
     s.buf = new Uint32Array(s.img.data.buffer);
 
-    // ~300 shovelfuls to reach the fill line in buryMs (a quarter extra for grains lost to slides).
-    var shovels = 300;
-    s.shovelCells = Math.max(24, Math.round((W * (H - s.targetTop)) * 1.25 / shovels));
-    s.shovelInterval = Math.max(16, s.opts.buryMs / shovels);
+    // Shovelfuls stay phone-sized (24–80 grains) and come more often on wide windows, so the
+    // pile grows as many small heaps rather than a few towers. A quarter extra for grains lost to slides.
+    var need = W * (H - s.targetTop) * 1.25;
+    s.shovelCells = Math.max(24, Math.min(80, Math.round(need / 300)));
+    s.shovelInterval = Math.max(12, s.opts.buryMs * s.shovelCells / need);
 
     if (!first) {
       surfaceScan(s);
@@ -258,7 +259,7 @@
     var n = Math.round(s.shovelCells * (0.5 + rnd() * 1.1));
     var vx = (rnd() - 0.5) * 0.5, vy = 0.2 + rnd() * 0.5;
     var g = 0.02 + rnd() * 0.025, vmax = 0.9 + rnd() * 0.6;
-    var spread = 2.5 + Math.sqrt(n) * 0.35;
+    var spread = 2 + Math.sqrt(n) * 0.5;
     for (var i = 0; i < n; i++) {
       var ang = rnd() * 6.2832, rad = Math.sqrt(rnd()) * spread;
       s.particles.push({
@@ -312,7 +313,7 @@
           var nx = x + dir;
           if (nx < 0 || nx >= W || g[row + nx]) { continue; }
           if (!g[below + nx]) { g[below + nx] = v; g[i] = 0; moved = true; }
-          else if (y + 2 < H && !g[below2 + nx] && (y === 0 || !g[row - W + x]) && (seed & 12) === 0) {
+          else if (y + 2 < H && !g[below2 + nx] && (y === 0 || !g[row - W + x]) && (seed & 4) === 0) {
             g[row + nx] = v; g[i] = 0; moved = true;   // shallow slope: step sideways, fall next tick
           }
         }
