@@ -13,7 +13,10 @@ Phase 2 (0.4): the extension **remembers gardens, and brings them back at page l
 - Revisit that page on an allowed site: `autorestore.js` (a content script that runs on allowed
   sites only, at `document_idle`) asks the background for the saved scene and restores it with no
   click and no HUD. If the site was not allowed, the garden still comes back on the next click.
-- Click while Dirt is on screen: clears it. "Forget this garden" will live in the album.
+- Leave mid-routine and come back: `shared.js` saves a checkpoint every 2 s and on page hide;
+  on return (page load on an allowed site, or the next click) the routine continues from where it
+  was instead of freezing or starting over.
+- Click while Dirt is on screen: clears it. "Forget this garden" lives in the album.
 - Share: once the garden completes, a round button in the lower-right corner takes a picture of
   the tab (`tabs.captureVisibleTab` in the background, allowed by `activeTab` after a click) and
   hands it to the share sheet, or downloads it. After a silent page-load restore the capture is

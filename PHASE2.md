@@ -94,11 +94,36 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 
 ## Feel of the throw (after device feedback)
 
-Shovelfuls are now few and big, slung in on an arc from the left, top or right edge and aimed at
-the low point of the pile; the clump holds together in the air and splashes on impact; a slow
-relaxation rule rounds the humps. Tuning knobs, all in `dirt-core.js`: clump size (`shovelCells`,
-150–450), flight time (34–60 sim ticks), splash probability (0.75) and spread (±3.6 cells),
-relaxation odds (1 in 64 per surface grain per tick).
+The shoveller stands off the left or right edge, level with the bottom of the page. Each
+shovelful (150–450 grains, roughly fifty per phone screen) enters the frame just above the dirt
+at that edge and lobs across to the lowest point of the pile on a ballistic arc; the arc is
+checked against the terrain before launch and lobbed higher, or thrown from the other side, if a
+mound is in the way (otherwise that mound catches every throw and grows into a tower). The clump
+holds together in the air; on impact three quarters of the grains skid along the surface away
+from the hit, falling where the ground drops and stopping where it rises, so spread is always
+sideways or down, never up. Grains that roll off the page edge are gone. As a last resort nothing
+settles more than 12 % of the height above the fill line: a grain that would slips to the
+nearest column with room. Measured in the harness: the tallest column never exceeds the fill
+line by more than that 12 %, on phone or desktop, and the mean fill lands within 1–4 % of target.
+
+Tuning knobs, all in `dirt-core.js`: clump size (`shovelCells`), flight time (36 + distance·30
+ticks), splash share (0.75) and skid speed (±3.6 cells), the slide rules in `settle()`.
+
+## Leaving mid-routine
+
+`Dirt.checkpoint()` is a small snapshot (biome, fill, phase, soil profile; no plants). The
+extension saves one every 2 s and on page hide. Coming back, `Dirt.resume()` rebuilds the pile
+so far and either keeps throwing to the target (if it was mid-bury) or grows the garden on the
+settled dirt (if it was mid-growth; partial plants are not kept, the garden regrows). A finished
+garden still saves normally at the end. Verified: leave at 13 % fill, return, continue from 13 %.
+
+## Forest and groundcover
+
+Trees grow trunk → branches in turn from the base up → leaves along each branch as it extends →
+a cluster spreading from each branch tip. Two in five are evergreens: tiers of down-swept
+branches with needles, bottom tier first. Every biome except desert and meadow also gets
+groundcover on the dirt itself, low tufts and clover filling in during growth (density per
+biome in `COVER_DENSITY`).
 
 ## Still open from Phase 1
 

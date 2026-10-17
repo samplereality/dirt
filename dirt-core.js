@@ -112,9 +112,9 @@
       particles: [], tips: [], scene: [],
       shovelAcc: 0, shovelInterval: 70, shovelNext: 70, shovelCells: 60, simAcc: 0,
       coverage: 0, greenCov: 0, filled: 0, tops: null, topFull: 0,
-      fillFrac: 0.4, fillActual: 0, targetTop: 0, topMean: 1e9, dirtCells: 0,
+      fillFrac: 0.4, fillActual: 0, fillPeak: 0, targetTop: 0, topMean: 1e9, dirtCells: 0,
       biome: 'garden', flora: 'flowers', pal: PALETTES.loam.map(rgba32),
-      vines: [], bushes: [], blooms: [], clusters: [], plants: [],
+      vines: [], bushes: [], blooms: [], clusters: [], plants: [], coverTarget: 0, coverCount: 0,
       t0: 0, tPhase: 0, lastT: 0, frames: 0, raf: 0, timer: 0,
       stats: { dts: new Float32Array(120), di: 0, dn: 0, simMs: 0, drawMs: 0, longFrames: 0, p95: 0 },
       running: false
@@ -306,6 +306,8 @@
     s.topFull = full / W;
     s.topMean = sum / W;
     s.fillActual = 1 - s.topMean / H;
+    var mn = H; for (var q = 0; q < W; q++) { if (tops[q] < mn) { mn = tops[q]; } }
+    s.fillPeak = 1 - mn / H;   // the tallest column, as a fraction of the height
     return tops;
   }
 
@@ -326,22 +328,55 @@
     var ty = Math.min(H - 1, tops[tx]);
     var n = Math.round(s.shovelCells * (0.6 + rnd() * 0.8));
     var spread = 1.5 + Math.sqrt(n) * 0.33;
-    // Where the throw comes from: off the left, the top, or the right edge.
-    var side = rnd(), x0, y0;
-    if (side < 0.4) { x0 = -spread - 2; y0 = rnd() * H * 0.45; }
-    else if (side < 0.6) { x0 = tx + (rnd() - 0.5) * W * 0.6; y0 = -spread - 3; }
-    else { x0 = W + spread + 2; y0 = rnd() * H * 0.45; }
-    // Ballistic solve for the clump's shared velocity: reach (tx, ty) in T sim ticks.
-    var kk = 60 / s.opts.simHz, T = (34 + rnd() * 26) * kk, g = 0.03;
-    var vx = (tx - x0) / T, vy = (ty - y0) / T - 0.5 * g * T;
+    // The shoveller stands off the left or right edge, level with the bottom of the page: the
+    // throw enters the frame just above the dirt at that edge and lobs across to the landing spot.
+    var side = rnd() < 0.5 ? -1 : 1;
+    // clear the pile along the whole entry strip, not just the edge column, or grains that enter
+    // inside the dirt land there and ratchet the edge column upward
+    var strip = Math.ceil(spread) + 3, edgeTop = H;
+    for (var e = 0; e < strip && e < W; e++) { var col = side < 0 ? e : W - 1 - e; if (tops[col] < edgeTop) { edgeTop = tops[col]; } }
+    edgeTop = Math.min(H - 2, edgeTop);
+    var x0 = side < 0 ? -spread - 2 : W + spread + 2;
+    var y0 = edgeTop - spread * 1.3 - 4 - rnd() * 4;
+    // Ballistic solve for the clump's shared velocity: reach (tx, ty) in T sim ticks. Longer
+    // flights lob higher. The arc must clear the terrain on the way, or the clump lands on a
+    // mound's face and that mound grows into every later throw; so lob higher, then try the
+    // other side, before giving up and throwing anyway.
+    var kk = 60 / s.opts.simHz, dist = Math.abs(tx - x0) / W, T = (36 + dist * 30 + rnd() * 16) * kk, g = 0.03;
+    var vx, vy, tries = 0;
+    for (;;) {
+      vx = (tx - x0) / T; vy = (ty - y0) / T - 0.5 * g * T;
+      if (arcClear(s, x0, y0, vx, vy, g, T, tx, spread)) { break; }
+      tries++;
+      if (tries === 4) {
+        side = -side; x0 = side < 0 ? -spread - 2 : W + spread + 2;
+        edgeTop = H; for (e = 0; e < strip && e < W; e++) { col = side < 0 ? e : W - 1 - e; if (tops[col] < edgeTop) { edgeTop = tops[col]; } }
+        y0 = Math.min(H - 2, edgeTop) - spread * 1.3 - 4 - rnd() * 4;
+        T = (36 + Math.abs(tx - x0) / W * 30) * kk;
+      } else if (tries > 7) { break; }
+      else { T *= 1.25; }
+    }
     var c0 = 1 + Math.floor(rnd() * s.pal.length);
     for (var i = 0; i < n; i++) {
       var ang = rnd() * 6.2832, rad = Math.sqrt(rnd()) * spread;
       s.particles.push({
         x: x0 + Math.cos(ang) * rad, y: y0 + Math.sin(ang) * rad * 0.7,
         vx: vx + (rnd() - 0.5) * 0.05, vy: vy + (rnd() - 0.5) * 0.05, g: g, vmax: 3,
-        c: rnd() < 0.7 ? c0 : 1 + Math.floor(rnd() * s.pal.length), seen: false, bounced: false
+        c: rnd() < 0.7 ? c0 : 1 + Math.floor(rnd() * s.pal.length), seen: false, bounced: false, rolling: false
       });
+    }
+    return true;
+  }
+
+  // Does the parabola from (x0,y0) with velocity (vx,vy) stay above the terrain until it is
+  // within a clump's width of the target column?
+  function arcClear(s, x0, y0, vx, vy, g, T, tx, spread) {
+    var W = s.W, tops = s.tops, steps = 24;
+    for (var i = 1; i < steps; i++) {
+      var t = T * i / steps, x = x0 + vx * t, y = y0 + vy * t + 0.5 * g * t * t;
+      if (x < 0 || x >= W) { continue; }
+      if (Math.abs(x - tx) <= spread + 1) { return true; }
+      if (y > tops[Math.floor(x)] - spread - 1) { return false; }
     }
     return true;
   }
@@ -351,34 +386,64 @@
     var cx = Math.max(0, Math.min(W - 1, Math.floor(p.x)));
     var cy = Math.min(H - 1, Math.floor(p.y));
     while (cy >= 0 && g[cy * W + cx]) { cy--; }
-    if (cy >= 0) { g[cy * W + cx] = p.c; }
+    if (cy < 0) { return; }
+    // Safety valve: nothing settles far above the fill line. A grain that would, slips to the
+    // nearest column that still has room (invisible at grain scale, keeps towers impossible).
+    if (cy < s.targetTop - s.H * 0.12) {
+      for (var d = 1; d < W; d++) {
+        var l = cx - d, r = cx + d;
+        if (l >= 0 && s.tops[l] > s.targetTop - 2) { cx = l; break; }
+        if (r < W && s.tops[r] > s.targetTop - 2) { cx = r; break; }
+      }
+      cy = Math.min(H - 1, s.tops[cx]); while (cy >= 0 && g[cy * W + cx]) { cy--; }
+      if (cy < 0) { return; }
+      s.tops[cx] = cy;
+    }
+    g[cy * W + cx] = p.c;
+  }
+
+  // Row of the empty cell sitting on top of column cx at or above row cy.
+  function surfaceAt(s, cx, cy) {
+    var W = s.W, g = s.grid;
+    while (cy >= 0 && g[cy * W + cx]) { cy--; }
+    return cy;
   }
 
   function stepParticles(s, k) {
     var ps = s.particles, W = s.W, H = s.H, g = s.grid;
     var w = 0;
     for (var i = 0; i < ps.length; i++) {
-      var p = ps[i];
+      var p = ps[i], cx, cy;
+      if (p.rolling) {
+        // Splash: skid along the surface away from the impact. Falls where the ground drops,
+        // stops where it rises; never climbs.
+        var ox2 = p.x;
+        p.x += p.vx * k; p.vx *= Math.pow(0.88, k);
+        if (p.x < 0 || p.x >= W) { continue; }                                  // rolled off the page
+        cx = Math.floor(p.x); cy = Math.floor(p.y);
+        if (g[cy * W + cx]) { p.x = ox2; land(s, p); continue; }             // ran into a rise
+        if (cy + 1 < H && !g[(cy + 1) * W + cx]) { p.rolling = false; p.vy = 0.15; ps[w++] = p; continue; } // rolled off a drop
+        if (Math.abs(p.vx) < 0.25 || cy + 1 >= H) { land(s, p); continue; }
+        ps[w++] = p; continue;
+      }
       p.vx += (rnd() - 0.5) * 0.012 * k;        // grains drift apart a little in flight
       p.vy = Math.min(p.vmax, p.vy + p.g * k);
       var ox = p.x, oy = p.y;
       p.x += p.vx * k; p.y += p.vy * k;
       if (p.x >= 0 && p.x < W) { p.seen = true; }
-      else if (p.seen) { p.x = p.x < 0 ? 0 : W - 0.01; p.vx = -p.vx * 0.3; }   // bounce off the edge once inside
-      else if (p.x < -W || p.x > 2 * W || p.y > H + 10) { continue; }        // thrown clean past the page
-      var cy = Math.floor(p.y), cx = Math.floor(p.x);
-      var hit = p.seen && (cy >= H - 1 || (cy >= 0 && (g[cy * W + cx] || g[(cy + 1) * W + cx])));
+      else if (p.seen ? (p.x < -4 || p.x > W + 4) : (p.x < -W || p.x > 2 * W || p.y > H + 10)) { continue; }   // left the page: gone
+      cy = Math.floor(p.y); cx = Math.floor(p.x);
+      var hit = p.seen && cx >= 0 && cx < W && (cy >= H - 1 || (cy >= 0 && (g[cy * W + cx] || g[(cy + 1) * W + cx])));
       if (hit) {
-        // Flew into the side of a slope: stop where it came from rather than climbing to the
-        // top of that column (which built towers).
+        // Flew into the side of a slope: stop where it came from rather than inside the pile.
         if (cy >= 0 && cy < H && g[cy * W + cx] && ox >= 0 && ox < W) { p.x = ox; p.y = oy; cy = Math.floor(oy); cx = Math.floor(ox); }
-        if (!p.bounced && rnd() < 0.75) {
-          // splash: skid sideways off the impact and come down again a little further on
-          p.bounced = true;
-          p.vx = (rnd() - 0.5) * 3.6 + p.vx * 0.3; p.vy = -(0.1 + rnd() * 0.5);
-          p.y = cy - 0.6;
-          ps[w++] = p;
-          continue;
+        if (!p.bounced && rnd() < 0.75 && cy >= 0) {
+          var sy = surfaceAt(s, cx, Math.min(H - 1, cy));
+          if (sy >= 0) {
+            p.bounced = true; p.rolling = true;
+            p.y = sy + 0.5; p.vx = (rnd() - 0.5) * 3.6 + p.vx * 0.3; p.vy = 0;
+            ps[w++] = p; continue;
+          }
         }
         land(s, p); continue;
       }
@@ -407,8 +472,10 @@
           else if (y === 0 || !g[row - W + x]) {
             // surface grain with a lower neighbour: step sideways, fall next tick. Often when the
             // drop is two or more cells (shallow slope), rarely when it is one (slow relaxation
-            // that rounds the humps without flattening them).
-            if (y + 2 < H && !g[below2 + nx]) { if ((seed & 3) !== 0) { g[row + nx] = v; g[i] = 0; moved = true; } }
+            // that rounds the humps without flattening them). Above the fill line: always, so no
+            // mound or tower can stand higher than the page is meant to be buried.
+            var high = y < s.targetTop - 1;
+            if (high || (y + 2 < H && !g[below2 + nx])) { if ((seed & 3) !== 0) { g[row + nx] = v; g[i] = 0; moved = true; } }
             else if ((seed & 63) === 0) { g[row + nx] = v; g[i] = 0; moved = true; }
           }
         }
@@ -427,6 +494,16 @@
       for (var y = H - r; y < H; y++) { g[y * W + x] = 1 + Math.floor(rnd() * s.pal.length); }
     }
     surfaceScan(s); countFilled(s); drawDirt(s);
+  }
+
+  // Rebuild the soil from a saved per-column depth profile (fractions of the height).
+  function pileFromProfile(s, prof) {
+    var W = s.W, H = s.H, g = s.grid, x, y;
+    for (x = 0; x < W; x++) {
+      var depth = Math.round(prof[Math.min(prof.length - 1, Math.floor(x * prof.length / W))] * H);
+      for (y = H - depth; y < H; y++) { g[y * W + x] = 1 + Math.floor(rnd() * s.pal.length); }
+    }
+    surfaceScan(s); countFilled(s); s.dirtCells = s.filled; drawDirt(s);
   }
 
   function countFilled(s) {
@@ -846,7 +923,10 @@
     done: function (s) { if (s.tips.length) { return false; } for (var i = 0; i < s.bushes.length; i++) { if (!s.bushes[i].started) { return false; } } return true; }
   };
 
-  // forest: tall trunks with a few branches and a leafy canopy, on dark loam
+  // forest: trunk first, then branches in turn with leaves along each branch as it extends, then
+  // a cluster spreading outward from each branch tip. Some trees are evergreens: tiers of
+  // down-swept branches with needles, growing from the bottom tier up.
+  var EVERGREEN_COL = ['#1f4d2b', '#2a6b3a', '#245c33', '#1b5e20', '#2e7d32'];
   FLORA.trees = {
     init: function (s) {
       var cw = s.cw, ch = s.ch, th = s.opts.treeHeight, growMs = s.opts.growMs;
@@ -854,11 +934,29 @@
       for (var i = 0; i < count; i++) {
         var x = (i + 0.25 + rnd() * 0.5) * cw / count, sy = soilY(s, x);
         var h = Math.min(sy - 10, (th[0] + rnd() * (th[1] - th[0])) * ch);
+        var ever = rnd() < 0.4, plan = [], b;
+        if (ever) {
+          var tiers = 6 + Math.floor(rnd() * 4);
+          for (b = 0; b < tiers; b++) {
+            var frac = 0.22 + (b / tiers) * 0.72, len = h * 0.3 * (1 - frac * 0.8) + 3;
+            plan.push({ at: frac, ang: 3.1416 - 0.35 - rnd() * 0.2, len: len });   // left, swept down
+            plan.push({ at: frac, ang: 0.35 + rnd() * 0.2, len: len });            // right, swept down
+          }
+          plan.push({ at: 1, ang: -1.5708, len: h * 0.08 + 3 });                   // leader
+        } else {
+          var nb = 3 + Math.floor(rnd() * 3);
+          for (b = 0; b < nb; b++) {
+            var side = b % 2 ? 1 : -1;
+            plan.push({ at: 0.5 + (b / nb) * 0.45 + rnd() * 0.05, ang: -1.5708 + side * (0.5 + rnd() * 0.55), len: h * (0.18 + rnd() * 0.16) });
+          }
+          plan.push({ at: 1, ang: -1.5708 + (rnd() - 0.5) * 0.5, len: h * (0.12 + rnd() * 0.08) });
+        }
+        plan.sort(function (p1, p2) { return p1.at - p2.at; });
         s.plants.push({
-          kind: 'tree', x: x, sy: sy, h: h, w: 4 + rnd() * 5, t: 0, delay: rnd() * growMs * 0.3,
-          rate: 1 / (growMs * (0.35 + rnd() * 0.4)), sway: (rnd() - 0.5) * 0.25, trunkCol: pick(TRUNK_COL),
-          leafCols: [pick(CANOPY_COL), pick(CANOPY_COL), pick(CANOPY_COL)], leaves: 0,
-          leafTarget: Math.round(90 + h * 0.9), branches: [], stroke: null, px: x, py: sy
+          kind: 'tree', ever: ever, x: x, sy: sy, h: h, w: 4 + rnd() * 5, t: 0, delay: rnd() * growMs * 0.25,
+          rate: 1 / (growMs * (0.22 + rnd() * 0.2)), sway: (rnd() - 0.5) * 0.25, trunkCol: ever ? '#4a2f17' : pick(TRUNK_COL),
+          leafCols: ever ? [pick(EVERGREEN_COL), pick(EVERGREEN_COL), pick(EVERGREEN_COL)] : [pick(CANOPY_COL), pick(CANOPY_COL), pick(CANOPY_COL)],
+          plan: plan, branches: [], stroke: null, px: x, py: sy
         });
       }
     },
@@ -867,40 +965,63 @@
       for (var i = 0; i < pl.length; i++) {
         var tr = pl[i];
         if (elapsed < tr.delay) { continue; }
-        if (!tr.stroke) { tr.stroke = startStroke(s, tr.x, tr.sy + 2, tr.w, tr.trunkCol); tr.stroke.w1 = tr.w * 0.5; }
+        if (!tr.stroke) { tr.stroke = startStroke(s, tr.x, tr.sy + 2, tr.w, tr.trunkCol); tr.stroke.w1 = tr.w * 0.45; }
+        // 1. trunk
         if (tr.t < 1) {
           tr.t = Math.min(1, tr.t + tr.rate * dt);
           var ny = tr.sy - tr.h * tr.t, nx = tr.x + Math.sin(tr.t * 3.1) * tr.sway * tr.h * 0.15;
-          extendStroke(s, tr.stroke, tr.px, tr.py, nx, ny, tr.w * (1 - 0.5 * tr.t));
+          extendStroke(s, tr.stroke, tr.px, tr.py, nx, ny, tr.w * (1 - 0.55 * tr.t));
           tr.px = nx; tr.py = ny;
-          // branches start partway up and grow with the trunk
-          if (tr.t > 0.5 && tr.branches.length < 3 && rnd() < 0.03 * k) {
-            var side = tr.branches.length % 2 ? 1 : -1, len = tr.h * (0.18 + rnd() * 0.14), ang = -1.5708 + side * (0.6 + rnd() * 0.5);
-            tr.branches.push({ x: nx, y: ny, ang: ang, len: len, t: 0, stroke: startStroke(s, nx, ny, tr.w * 0.45, tr.trunkCol), px: nx, py: ny });
-          }
+          if (tr.t === 1) { tr.stroke.pts.push(nx, ny); }
+          continue;
+        }
+        // 2. branches, in order from the trunk base up; the next starts once the previous is half grown
+        var last = tr.branches[tr.branches.length - 1];
+        if (tr.plan.length && (!last || last.t > 0.5)) {
+          var pn = tr.plan.shift();
+          var bx0 = tr.x + Math.sin(pn.at * 3.1) * tr.sway * tr.h * 0.15, by0 = tr.sy - tr.h * pn.at;
+          tr.branches.push({ x: bx0, y: by0, ang: pn.ang, len: pn.len, t: 0, px: bx0, py: by0, leaves: 0,
+            leafTarget: tr.ever ? 0 : Math.round(10 + pn.len * 0.5), stroke: startStroke(s, bx0, by0, tr.w * 0.5, tr.trunkCol), needleAcc: 0 });
         }
         for (var b = 0; b < tr.branches.length; b++) {
           var br = tr.branches[b];
           if (br.t < 1) {
-            br.t = Math.min(1, br.t + tr.rate * 1.6 * dt);
+            br.t = Math.min(1, br.t + tr.rate * 2.2 * dt);
             var bx = br.x + Math.cos(br.ang) * br.len * br.t, by = br.y + Math.sin(br.ang) * br.len * br.t;
-            extendStroke(s, br.stroke, br.px, br.py, bx, by, tr.w * 0.45 * (1 - 0.5 * br.t));
+            extendStroke(s, br.stroke, br.px, br.py, bx, by, tr.w * 0.5 * (1 - 0.6 * br.t));
+            var moved = Math.sqrt((bx - br.px) * (bx - br.px) + (by - br.py) * (by - br.py));
             br.px = bx; br.py = by;
-            if (rnd() < 0.25 * k) { drawLeaf(s, bx, by, br.ang + (rnd() < 0.5 ? 1 : -1) * (0.9 + rnd() * 0.6), 4 + rnd() * 4, pick(tr.leafCols)); }
-          }
-        }
-        // canopy grows outward from the top of the trunk: leaf j of N sits at radius R*sqrt(j/N),
-        // so each ring fills before the next, like a crown spreading from the inside
-        if (tr.t > 0.6 && tr.leaves < tr.leafTarget) {
-          var n = 1 + Math.floor(rnd() * 3 * k), cyc = tr.sy - tr.h * 0.78, rx = tr.h * 0.3, ry = tr.h * 0.26;
-          for (var j = 0; j < n && tr.leaves < tr.leafTarget; j++, tr.leaves++) {
-            var a = rnd() * 6.2832, rr = Math.sqrt((tr.leaves + rnd()) / tr.leafTarget);
-            drawLeaf(s, tr.x + Math.cos(a) * rx * rr, cyc + Math.sin(a) * ry * rr, rnd() * 6.2832, 5 + rnd() * 5, pick(tr.leafCols));
+            // 3a. leaves (or needles) along the branch as it extends
+            if (tr.ever) {
+              br.needleAcc += moved;
+              while (br.needleAcc >= 2.2) {
+                br.needleAcc -= 2.2;
+                var ns = rnd() < 0.5 ? 1 : -1;
+                drawLeaf(s, bx, by, br.ang + ns * (1.1 + rnd() * 0.5) + 0.6, 2.2 + rnd() * 1.6, pick(tr.leafCols));
+              }
+            } else if (rnd() < 0.35 * k) {
+              drawLeaf(s, bx, by, br.ang + (rnd() < 0.5 ? 1 : -1) * (0.8 + rnd() * 0.7), 3.5 + rnd() * 3.5, pick(tr.leafCols));
+            }
+            if (br.t === 1) { br.stroke.pts.push(bx, by); }
+          } else if (br.leaves < br.leafTarget) {
+            // 3b. a cluster spreading outward from the branch tip
+            var n = 1 + Math.floor(rnd() * 2 * k), R = br.len * 0.55 + 6;
+            for (var j = 0; j < n && br.leaves < br.leafTarget; j++, br.leaves++) {
+              var a = rnd() * 6.2832, rr = R * Math.sqrt((br.leaves + rnd()) / br.leafTarget);
+              drawLeaf(s, br.px + Math.cos(a) * rr, br.py + Math.sin(a) * rr * 0.8, rnd() * 6.2832, 4.5 + rnd() * 4.5, pick(tr.leafCols));
+            }
           }
         }
       }
     },
-    done: function (s) { for (var i = 0; i < s.plants.length; i++) { var t = s.plants[i]; if (t.t < 1 || t.leaves < t.leafTarget) { return false; } } return true; }
+    done: function (s) {
+      for (var i = 0; i < s.plants.length; i++) {
+        var t = s.plants[i];
+        if (t.t < 1 || t.plan.length) { return false; }
+        for (var b = 0; b < t.branches.length; b++) { var br = t.branches[b]; if (br.t < 1 || br.leaves < br.leafTarget) { return false; } }
+      }
+      return true;
+    }
   };
 
   // desert: columnar cacti with arms and spines, the odd flower on top, on sandy dirt
@@ -970,19 +1091,54 @@
     }
   };
 
+  // ---- groundcover: low tufts and clover over the dirt itself, in most biomes
+  var COVER_DENSITY = { garden: 0.5, meadow: 0, trellis: 1, hedgerow: 1, forest: 0.9, desert: 0 };
+  var COVER_COL = ['#4f7f3a', '#5e8f44', '#6f9a4a', '#3f6e33', '#7aa052'];
+
+  function initCover(s) {
+    var d = s.flora === 'none' ? 0 : (COVER_DENSITY[s.biome] || 0);
+    s.coverTarget = Math.round(s.dirtCells / 40 * d); s.coverCount = 0;
+  }
+
+  function stepCover(s, k) {
+    if (s.coverCount >= s.coverTarget) { return; }
+    var W = s.W, H = s.H, cs = s.opts.cellSize, g = s.grid, tops = s.tops;
+    var want = (rnd() < 0.7 * k ? 1 : 0) + (rnd() < 0.3 * k ? 1 : 0);
+    for (var n = 0; n < want && s.coverCount < s.coverTarget; n++) {
+      var x = Math.floor(rnd() * W), top = tops[x]; if (top >= H) { continue; }
+      var y = top + Math.floor(rnd() * (H - top)); if (!g[y * W + x]) { continue; }
+      var px = (x + 0.5) * cs, py = (y + 0.5) * cs, col = pick(COVER_COL);
+      if (rnd() < 0.7) {
+        var blades = 2 + Math.floor(rnd() * 3);
+        for (var b = 0; b < blades; b++) {
+          var h = 4 + rnd() * 7, lean = (rnd() - 0.5) * 1.2, bx = px + (rnd() - 0.5) * 3;
+          var st = startStroke(s, bx, py, 0.9, col);
+          st.w1 = 0.4; st.pts.push(bx + lean * h * 0.3, py - h * 0.55, bx + lean * h, py - h);
+          paintStroke(s.gctx, st, function (a, b2) { return [a, b2]; });
+        }
+      } else {
+        drawLeaf(s, px, py, rnd() * 6.2832, 2 + rnd() * 1.5, col);
+        drawLeaf(s, px, py, rnd() * 6.2832, 2 + rnd() * 1.5, col);
+      }
+      s.coverCount++;
+    }
+  }
+
   // dirt only: the spill-over that lands on the pages after a buried one
   FLORA.none = { init: function () {}, step: function () {}, done: function () { return true; } };
 
   function initGarden(s) {
     s.tips = []; s.vines = []; s.bushes = []; s.plants = []; s.blooms = []; s.clusters = []; s.scene = [];
     s.dirtCells = s.filled;
+    initCover(s);
     FLORA[s.flora].init(s);
   }
 
   function stepGrow(s, dt, k) {
     var elapsed = now() - s.tPhase;
+    stepCover(s, k);
     FLORA[s.flora].step(s, dt, k, elapsed);
-    if ((s.frames & 15) === 0 && (FLORA[s.flora].done(s) || elapsed > s.opts.growMs * 1.8)) {
+    if ((s.frames & 15) === 0 && ((FLORA[s.flora].done(s) && s.coverCount >= s.coverTarget) || elapsed > s.opts.growMs * 1.8)) {
       setPhase(s, 'garden');
       s.running = false; // the garden stays on screen; nothing left to animate
     }
@@ -1159,6 +1315,33 @@
       }
       return { v: 1, version: VERSION, biome: s.biome, fill: s.fillFrac, viewport: [s.cw, s.ch], profile: prof, scene: ops, savedAt: Date.now() };
     },
+    // A small mid-run snapshot (no plants): enough to continue the routine after the page is left
+    // and returned to. The host saves it every couple of seconds and on page hide.
+    checkpoint: function () {
+      var s = S; if (!s || (s.phase !== 'burying' && s.phase !== 'growing')) { return null; }
+      surfaceScan(s);
+      var prof = [];
+      for (var i = 0; i < s.W; i++) { prof.push(Math.round((1 - s.tops[i] / s.H) * 1000) / 1000); }
+      return { v: 1, partial: true, version: VERSION, phase: s.phase, biome: s.biome, flora: s.flora, fill: s.fillFrac, viewport: [s.cw, s.ch], profile: prof, savedAt: Date.now() };
+    },
+    // Continue from a checkpoint: rebuild the pile so far, then keep throwing (if it was mid-bury)
+    // or grow the garden (if the dirt had settled). A finished scene is simply restored.
+    resume: function (data, opts) {
+      if (!data || data.v !== 1) { return API; }
+      if (!data.partial) { return API.restore(data, opts); }
+      if (S) { API.stop(); }
+      var o = {}; for (var kk in DEFAULTS) { o[kk] = DEFAULTS[kk]; }
+      if (opts) { for (var k2 in opts) { if (opts[k2] !== undefined) { o[k2] = opts[k2]; } } }
+      var s = S = makeState(o);
+      s.fillFrac = data.fill;
+      setBiome(s, data.biome, data.flora === 'none' ? 'none' : null);
+      begin(s);
+      pileFromProfile(s, data.profile);
+      if (data.phase === 'burying') { setPhase(s, 'burying'); }
+      else { initGarden(s); setPhase(s, 'growing'); }
+      s.raf = root.requestAnimationFrame(frame);
+      return API;
+    },
     // Rebuild a saved scene in the current viewport, as a finished garden (no animation).
     restore: function (data, opts) {
       if (!data || data.v !== 1) { return API; }
@@ -1169,13 +1352,7 @@
       s.fillFrac = data.fill;
       setBiome(s, data.biome, null);
       begin(s);
-      // soil from the saved per-column depth profile
-      var W = s.W, H = s.H, prof = data.profile, g = s.grid, x, y;
-      for (x = 0; x < W; x++) {
-        var depth = Math.round(prof[Math.min(prof.length - 1, Math.floor(x * prof.length / W))] * H);
-        for (y = H - depth; y < H; y++) { g[y * W + x] = 1 + Math.floor(rnd() * s.pal.length); }
-      }
-      surfaceScan(s); countFilled(s); s.dirtCells = s.filled; drawDirt(s);
+      pileFromProfile(s, data.profile);
       // plants, replayed through the viewport change
       var sc = data.scene, ops = [], i;
       for (i = 0; i < sc.length; i++) {
@@ -1219,7 +1396,7 @@
         fps: avg ? 1000 / avg : 0, avgFrameMs: avg, p95FrameMs: st.p95,
         simMs: st.simMs, drawMs: st.drawMs, longFrames: st.longFrames,
         frames: s.frames, elapsed: (now() - s.t0) / 1000,
-        coverage: s.coverage, fill: s.fillFrac, fillActual: s.fillActual, greenCoverage: s.greenCov,
+        coverage: s.coverage, fill: s.fillFrac, fillActual: s.fillActual, fillPeak: s.fillPeak || 0, greenCoverage: s.greenCov,
         particles: s.particles.length, tips: s.tips.length, sceneOps: s.scene.length,
         vines: s.vines.filter(function (v) { return !v.done; }).length
       };

@@ -29,5 +29,26 @@ const DirtExt = (() => {
     return send({ type: 'dirt:save', url: location.href, data, thumb, title: document.title });
   }
 
-  return { api, capture, openAlbum, thumbnail, saveCurrent };
+  // While the routine runs, keep a small checkpoint so leaving the page and coming back
+  // continues it instead of freezing or starting over. Saved every 2 s and on page hide.
+  let ticker = 0;
+  function checkpoint() {
+    const c = Dirt.checkpoint();
+    if (c) send({ type: 'dirt:checkpoint', url: location.href, data: c }).catch(() => {});
+  }
+  function watch() {
+    clearInterval(ticker);
+    ticker = setInterval(() => { if (Dirt.phase === 'burying' || Dirt.phase === 'growing') checkpoint(); else clearInterval(ticker); }, 2000);
+    window.addEventListener('pagehide', checkpoint, { once: false });
+  }
+
+  // Standard options for a run started by the extension, with completion wired to the album.
+  function opts(extra) {
+    return Object.assign({
+      capture, onAlbum: openAlbum,
+      onPhase: (phase) => { if (phase === 'garden') { clearInterval(ticker); saveCurrent().catch(() => {}); } }
+    }, extra || {});
+  }
+
+  return { api, capture, openAlbum, thumbnail, saveCurrent, checkpoint, watch, opts };
 })();

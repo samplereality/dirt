@@ -111,12 +111,16 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const reply = (p) => p.then(v => sendResponse(v === undefined ? { ok: true } : v), e => sendResponse({ ok: false, error: e && e.message }));
   switch (msg.type) {
     case 'dirt:save': if (msg.url && msg.data) { if (sender && sender.tab) markBuried(sender.tab.id, msg.url, msg.data); reply(saveGarden(msg)); return true; } break;
+    case 'dirt:checkpoint':
+      // mid-routine snapshot: replaces the garden slot for this URL but is not in the album
+      if (msg.url && msg.data && msg.data.partial) { reply(api.storage.local.set({ [gardenKey(msg.url)]: msg.data })); return true; }
+      break;
     case 'dirt:lookup': {
       // page load on an allowed site: a saved garden wins; otherwise maybe some spill-over dirt
       const k = gardenKey(msg.url || ''), tabId = sender && sender.tab ? sender.tab.id : null;
       reply((async () => {
         const garden = (await api.storage.local.get(k))[k] || null;
-        if (garden) { markBuried(tabId, msg.url, garden); return { garden }; }
+        if (garden) { if (!garden.partial) markBuried(tabId, msg.url, garden); return { garden }; }
         return { garden: null, spill: tabId != null ? await spillFor(tabId, msg.url) : null };
       })());
       return true;
