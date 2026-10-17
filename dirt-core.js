@@ -38,6 +38,7 @@
     buryMs: 20000,      // target time for the dirt to reach its fill line
     growMs: 25000,      // target time for the garden to finish
     simHz: 30,          // sand-simulation tick rate; lower = chunkier, more hand-animated motion
+    settled: false,     // true = build the pile instantly (dirt that was already there) instead of throwing it
     bushHeight: [0.15, 0.25], // bushes rise this fraction of the viewport height above the soil line
     treeHeight: [0.25, 0.42], // forest trees rise this fraction of the viewport height above the soil line
     cactusHeight: [0.12, 0.3],
@@ -269,11 +270,11 @@
     s.img = s.octx.createImageData(W, H);
     s.buf = new Uint32Array(s.img.data.buffer);
 
-    // Shovelfuls stay phone-sized (24–80 grains) and come more often on wide windows, so the
-    // pile grows as many small heaps rather than a few towers. A quarter extra for grains lost to slides.
+    // Shovelfuls: big clumps (150–450 grains), slung in from the edges; roughly fifty of them
+    // fill a phone screen. Wide windows get more, not bigger. A quarter extra for grains lost to slides.
     var need = W * (H - s.targetTop) * 1.25;
-    s.shovelCells = Math.max(24, Math.min(80, Math.round(need / 300)));
-    s.shovelInterval = Math.max(12, s.opts.buryMs * s.shovelCells / need);
+    s.shovelCells = Math.max(150, Math.min(450, Math.round(need / 50)));
+    s.shovelInterval = Math.max(60, s.opts.buryMs * s.shovelCells / need);
 
     if (!first) {
       surfaceScan(s);
@@ -309,30 +310,37 @@
   }
 
   function spawnShovel(s) {
-    var W = s.W, tops = surfaceScan(s);
-    var bx;
+    var W = s.W, H = s.H, tops = surfaceScan(s);
+    var tx;
     if (rnd() < 0.5 + 0.5 * s.topFull) {
       // Aim at a low point in the surface: pick the deepest of several random probes.
       var probes = 6 + Math.round(s.topFull * 24), bt = -1;
       for (var k = 0; k < probes; k++) {
         var cx = Math.floor(rnd() * W);
-        if (tops[cx] > bt) { bt = tops[cx]; bx = cx; }
+        if (tops[cx] > bt) { bt = tops[cx]; tx = cx; }
       }
       if (bt <= s.targetTop) { return false; } // every probe hit a finished column
     } else {
-      bx = Math.floor(rnd() * W);
+      tx = Math.floor(rnd() * W);
     }
-    // Shovelfuls vary: some small and quick, some big and lazy; each clump has its own weight.
-    var n = Math.round(s.shovelCells * (0.5 + rnd() * 1.1));
-    var vx = (rnd() - 0.5) * 0.5, vy = 0.2 + rnd() * 0.5;
-    var g = 0.02 + rnd() * 0.025, vmax = 0.9 + rnd() * 0.6;
-    var spread = 2 + Math.sqrt(n) * 0.5;
+    var ty = Math.min(H - 1, tops[tx]);
+    var n = Math.round(s.shovelCells * (0.6 + rnd() * 0.8));
+    var spread = 1.5 + Math.sqrt(n) * 0.33;
+    // Where the throw comes from: off the left, the top, or the right edge.
+    var side = rnd(), x0, y0;
+    if (side < 0.4) { x0 = -spread - 2; y0 = rnd() * H * 0.45; }
+    else if (side < 0.6) { x0 = tx + (rnd() - 0.5) * W * 0.6; y0 = -spread - 3; }
+    else { x0 = W + spread + 2; y0 = rnd() * H * 0.45; }
+    // Ballistic solve for the clump's shared velocity: reach (tx, ty) in T sim ticks.
+    var kk = 60 / s.opts.simHz, T = (34 + rnd() * 26) * kk, g = 0.03;
+    var vx = (tx - x0) / T, vy = (ty - y0) / T - 0.5 * g * T;
+    var c0 = 1 + Math.floor(rnd() * s.pal.length);
     for (var i = 0; i < n; i++) {
       var ang = rnd() * 6.2832, rad = Math.sqrt(rnd()) * spread;
       s.particles.push({
-        x: bx + Math.cos(ang) * rad, y: -3 - Math.abs(Math.sin(ang) * rad) - rnd() * 6,
-        vx: vx + (rnd() - 0.5) * 0.3, vy: vy + (rnd() - 0.5) * 0.2, g: g, vmax: vmax,
-        c: 1 + Math.floor(rnd() * s.pal.length)
+        x: x0 + Math.cos(ang) * rad, y: y0 + Math.sin(ang) * rad * 0.7,
+        vx: vx + (rnd() - 0.5) * 0.05, vy: vy + (rnd() - 0.5) * 0.05, g: g, vmax: 3,
+        c: rnd() < 0.7 ? c0 : 1 + Math.floor(rnd() * s.pal.length), seen: false, bounced: false
       });
     }
     return true;
@@ -351,13 +359,29 @@
     var w = 0;
     for (var i = 0; i < ps.length; i++) {
       var p = ps[i];
-      p.vx += (rnd() - 0.5) * 0.02 * k;         // a little turbulence so clumps loosen as they fall
-      p.vx *= 1 - 0.02 * k;
-      p.vy = Math.min(p.vmax, p.vy + p.g * k);  // terminal velocity: no bullet-fast grains
+      p.vx += (rnd() - 0.5) * 0.012 * k;        // grains drift apart a little in flight
+      p.vy = Math.min(p.vmax, p.vy + p.g * k);
+      var ox = p.x, oy = p.y;
       p.x += p.vx * k; p.y += p.vy * k;
-      if (p.x < 0) { p.x = 0; p.vx = -p.vx * 0.3; } else if (p.x >= W) { p.x = W - 0.01; p.vx = -p.vx * 0.3; }
+      if (p.x >= 0 && p.x < W) { p.seen = true; }
+      else if (p.seen) { p.x = p.x < 0 ? 0 : W - 0.01; p.vx = -p.vx * 0.3; }   // bounce off the edge once inside
+      else if (p.x < -W || p.x > 2 * W || p.y > H + 10) { continue; }        // thrown clean past the page
       var cy = Math.floor(p.y), cx = Math.floor(p.x);
-      if (cy >= H - 1 || (cy >= 0 && (g[cy * W + cx] || g[(cy + 1) * W + cx]))) { land(s, p); continue; }
+      var hit = p.seen && (cy >= H - 1 || (cy >= 0 && (g[cy * W + cx] || g[(cy + 1) * W + cx])));
+      if (hit) {
+        // Flew into the side of a slope: stop where it came from rather than climbing to the
+        // top of that column (which built towers).
+        if (cy >= 0 && cy < H && g[cy * W + cx] && ox >= 0 && ox < W) { p.x = ox; p.y = oy; cy = Math.floor(oy); cx = Math.floor(ox); }
+        if (!p.bounced && rnd() < 0.75) {
+          // splash: skid sideways off the impact and come down again a little further on
+          p.bounced = true;
+          p.vx = (rnd() - 0.5) * 3.6 + p.vx * 0.3; p.vy = -(0.1 + rnd() * 0.5);
+          p.y = cy - 0.6;
+          ps[w++] = p;
+          continue;
+        }
+        land(s, p); continue;
+      }
       ps[w++] = p;
     }
     ps.length = w;
@@ -380,12 +404,29 @@
           var nx = x + dir;
           if (nx < 0 || nx >= W || g[row + nx]) { continue; }
           if (!g[below + nx]) { g[below + nx] = v; g[i] = 0; moved = true; }
-          else if (y + 2 < H && !g[below2 + nx] && (y === 0 || !g[row - W + x]) && (seed & 4) === 0) {
-            g[row + nx] = v; g[i] = 0; moved = true;   // shallow slope: step sideways, fall next tick
+          else if (y === 0 || !g[row - W + x]) {
+            // surface grain with a lower neighbour: step sideways, fall next tick. Often when the
+            // drop is two or more cells (shallow slope), rarely when it is one (slow relaxation
+            // that rounds the humps without flattening them).
+            if (y + 2 < H && !g[below2 + nx]) { if ((seed & 3) !== 0) { g[row + nx] = v; g[i] = 0; moved = true; } }
+            else if ((seed & 63) === 0) { g[row + nx] = v; g[i] = 0; moved = true; }
           }
         }
       }
     }
+  }
+
+  // Build the pile instantly: a gently bumpy surface at the fill line, as if the dirt landed
+  // earlier. Used for spill-over on neighbouring pages (and anywhere a throw would be wrong).
+  function buildPile(s) {
+    var W = s.W, H = s.H, g = s.grid, rows = H - s.targetTop;
+    var p1 = rnd() * 6.28, p2 = rnd() * 6.28, p3 = rnd() * 6.28;
+    for (var x = 0; x < W; x++) {
+      var r = rows * (1 + 0.2 * Math.sin(x * 0.07 + p1) + 0.1 * Math.sin(x * 0.19 + p2) + 0.06 * Math.sin(x * 0.43 + p3)) + (rnd() - 0.5) * 1.5;
+      r = Math.max(1, Math.min(H, Math.round(r)));
+      for (var y = H - r; y < H; y++) { g[y * W + x] = 1 + Math.floor(rnd() * s.pal.length); }
+    }
+    surfaceScan(s); countFilled(s); drawDirt(s);
   }
 
   function countFilled(s) {
@@ -1090,7 +1131,14 @@
       s.fillFrac = o.fill[0] + rnd() * (o.fill[1] - o.fill[0]);
       setBiome(s, o.biome, o.flora);
       begin(s);
-      setPhase(s, 'burying');
+      if (o.settled) {
+        buildPile(s);
+        initGarden(s);
+        if (s.flora === 'none') { s.running = false; setPhase(s, 'garden'); if (s.hud) { s.hud.textContent = hudText(s); } return API; }
+        setPhase(s, 'growing');
+      } else {
+        setPhase(s, 'burying');
+      }
       s.raf = root.requestAnimationFrame(frame);
       return API;
     },

@@ -11,9 +11,9 @@
       if (!res || Dirt.phase !== 'idle') return;
       if (res.garden) { Dirt.restore(res.garden, { debug: false, capture: DirtExt.capture, onAlbum: DirtExt.openAlbum }); return; }
       if (res.spill) {
-        // dirt only, proportionally quicker, no buttons: a trace, not a garden
+        // dirt only, already settled when the page opens: it landed at the same time as the first page's
         const f = res.spill.fill;
-        Dirt.start({ biome: res.spill.biome, flora: 'none', fill: [f, f], buryMs: Math.max(3000, Math.round(20000 * f / 0.42)), shareButton: false, debug: false });
+        Dirt.start({ biome: res.spill.biome, flora: 'none', fill: [f, f], settled: true, shareButton: false, debug: false });
       }
     })
     .catch(() => {});

@@ -63,9 +63,11 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
   allowed, which covers links within the buried page's own site for free. The album has a switch,
   "let dirt follow links to other sites", that asks once for the browser's all-sites permission;
   off by default. Semantics: the next three pages opened in that tab get 45 %, 22 % and 10 % of
-  the original fill, same dirt colour, no garden, no buttons; a link opened into a new tab
-  inherits the budget from its opener; going back to a page that already got its spill shows the
-  same amount; returning to the buried page itself (the garden restores) refreshes the budget.
+  the original fill, same dirt colour, no garden, no buttons, and **already settled when the page
+  opens**, as if it landed at the same time as the dirt on the first page (core `settled: true`);
+  a link opened into a new tab inherits the budget from its opener; going back to a page that
+  already got its spill shows the same amount; returning to the buried page itself (the garden
+  restores) refreshes the budget.
 - **What the album keeps.** A thumbnail per garden means the extension keeps a list of pages the
   reader buried, with a small picture of each. It never leaves the device, but it belongs in the
   privacy note. Per-URL or per-site keys is also a product choice (per-URL for now).
@@ -89,6 +91,14 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
    the back button and a new tab opened from the buried page.
 6. Distribution: Chrome Web Store and Firefox Add-ons listings; the iOS app on TestFlight via the
    colleague's account (`ios/Config.xcconfig` carries no Team ID, so the move is a one-line edit).
+
+## Feel of the throw (after device feedback)
+
+Shovelfuls are now few and big, slung in on an arc from the left, top or right edge and aimed at
+the low point of the pile; the clump holds together in the air and splashes on impact; a slow
+relaxation rule rounds the humps. Tuning knobs, all in `dirt-core.js`: clump size (`shovelCells`,
+150–450), flight time (34–60 sim ticks), splash probability (0.75) and spread (±3.6 cells),
+relaxation odds (1 in 64 per surface grain per tick).
 
 ## Still open from Phase 1
 
