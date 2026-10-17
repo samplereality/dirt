@@ -171,7 +171,7 @@
       "status": 200,
       "ms": 637,
       "frameable": false,
-      "reason": "CSP frame-ancestors 'self' https://x.com https://x.com:443 https://twitter.com https://twitter.com:443 (allows some origins; may still block ours)",
+      "reason": "CSP frame-ancestors 'self' https://x.com https://x.com:443 https://twitter.com https://twitter.com:443 (not our origin)",
       "xFrameOptions": "SAMEORIGIN",
       "frameAncestors": "'self' https://x.com https://x.com:443 https://twitter.com https://twitter.com:443"
     },
@@ -252,7 +252,7 @@
       "status": 200,
       "ms": 812,
       "frameable": false,
-      "reason": "CSP frame-ancestors 'none'",
+      "reason": "CSP frame-ancestors 'none' (not our origin)",
       "xFrameOptions": "DENY",
       "frameAncestors": "'none'"
     },
@@ -306,7 +306,7 @@
       "status": 200,
       "ms": 421,
       "frameable": false,
-      "reason": "CSP frame-ancestors 'self' https://copilot-app.condenast.io https://stg-copilot-app.condenast.io (allows some origins; may still block ours)",
+      "reason": "CSP frame-ancestors 'self' https://copilot-app.condenast.io https://stg-copilot-app.condenast.io (not our origin)",
       "xFrameOptions": null,
       "frameAncestors": "'self' https://copilot-app.condenast.io https://stg-copilot-app.condenast.io"
     },
@@ -333,7 +333,7 @@
       "status": 200,
       "ms": 167,
       "frameable": false,
-      "reason": "CSP frame-ancestors 'self' https://medium.com (allows some origins; may still block ours)",
+      "reason": "CSP frame-ancestors 'self' https://medium.com (not our origin)",
       "xFrameOptions": null,
       "frameAncestors": "'self' https://medium.com"
     },
@@ -359,8 +359,8 @@
       "finalUrl": "https://substack.com/",
       "status": 200,
       "ms": 555,
-      "frameable": true,
-      "reason": "CSP frame-ancestors 'self' https://*.substack.com https://substack.com (allows some origins; may still block ours)",
+      "frameable": false,
+      "reason": "CSP frame-ancestors 'self' https://*.substack.com https://substack.com (not our origin)",
       "xFrameOptions": null,
       "frameAncestors": "'self' https://*.substack.com https://substack.com"
     },
@@ -467,8 +467,8 @@
       "finalUrl": "https://www.craigslist.org/area/charlotte",
       "status": 200,
       "ms": 1713,
-      "frameable": true,
-      "reason": "CSP frame-ancestors https://*.craigslist.org (allows some origins; may still block ours)",
+      "frameable": false,
+      "reason": "CSP frame-ancestors https://*.craigslist.org (not our origin)",
       "xFrameOptions": "SAMEORIGIN",
       "frameAncestors": "https://*.craigslist.org"
     },

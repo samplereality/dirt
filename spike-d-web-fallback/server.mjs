@@ -72,9 +72,12 @@ export function framingVerdict(headers) {
   const frameAncestors = fa ? fa[1].trim() : null;
   let frameable = true, reason = 'no framing restrictions in headers';
   if (frameAncestors) {
-    const v = frameAncestors.toLowerCase();
-    if (v === "'none'" || v === "'self'" || !(v.includes('*') || v.includes('http'))) { frameable = false; reason = `CSP frame-ancestors ${frameAncestors}`; }
-    else { reason = `CSP frame-ancestors ${frameAncestors} (allows some origins; may still block ours)`; frameable = v.includes('*'); }
+    // Only a bare '*' (or an http: / https: scheme source) lets an arbitrary origin frame the page;
+    // 'self', 'none' and host patterns such as https://*.example.com do not include us.
+    const sources = frameAncestors.toLowerCase().split(/\s+/);
+    const open = sources.some(src => src === '*' || src === 'https:' || src === 'http:');
+    frameable = open;
+    reason = `CSP frame-ancestors ${frameAncestors}` + (open ? '' : ' (not our origin)');
   } else if (xfo === 'DENY' || xfo === 'SAMEORIGIN' || xfo.startsWith('ALLOW-FROM')) {
     frameable = false; reason = `X-Frame-Options ${xfo}`;
   }

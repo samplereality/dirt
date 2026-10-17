@@ -17,8 +17,12 @@ Date: 2026-10-14. Author of the spikes: Claude, working from Mark Sample's proje
   share sheet closed (heartbeat reached 2130 frames, i.e. bury plus bushes). On nytimes.com the
   HUD read 57–60 fps, 16–17 ms per frame, p95 flat; the success criterion is met. Rotation
   exposed two bugs (settled dirt vanished; dirt and flowers stretched oblong), both fixed since.
-- **Still unverified:** the live 22-site framing/screenshot survey (no outbound internet in the
-  build container) and desktop Firefox. A note that the phone "could not rotate" while the
+- **Spike D live survey (Mark, 2026-10-17, headless Google Chrome on a Mac):** 4 of 22 sites can
+  be framed; 14 of 22 screenshots are usable; the other 8 are bot blocks (NYTimes 403, WSJ 401),
+  login walls (Instagram, X), or app shells that render nothing without interaction (YouTube,
+  Google Maps, Medium, Craigslist). Captures take 2–33 s. Screenshot-first is the right design,
+  but the biggest news sites reject headless browsers outright.
+- **Still unverified:** desktop Firefox. A note that the phone "could not rotate" while the
   extension ran turned out to affect every app, so it is the phone (orientation lock or a
   reboot), not Dirt; re-check after the resize fixes.
 
@@ -133,20 +137,41 @@ route is a transport for links from other apps, not the headline experience. Ver
 iPhone: paste → Bury works. The App Group needed for the share-sheet handoff cannot be signed by
 a free Personal Team, so its entitlements are opt-in in `ios/project.yml` (paid team only).
 
-## Spike D — web fallback: **server and page work; live survey pending**
+## Spike D — web fallback: **works; live survey done**
 
 `server.mjs` probes headers (`X-Frame-Options`, CSP `frame-ancestors`) following redirects with a
 mobile UA, and takes a full-page screenshot with an iPhone-14 Chromium profile (scrolls first so
 lazy images load; capped at 12 000 px; 1-hour cache). `public/index.html` frames the page when
 allowed and otherwise shows the screenshot in a scroll container, with Dirt fixed above either.
 
-Offline self-test (`RESULTS.LOCAL.md`): the verdicts for open / `DENY` / `SAMEORIGIN` /
-`frame-ancestors 'none'` pages are correct; screenshots of a 12 000 px heavy page take ≈ 9 s, of
-a plain page ≈ 2–3 s. The live run over the 22 sites in `sites.json` **did not happen** because
-the build container has no outbound web access; `npm run probe` produces `RESULTS.md` in about
-two minutes from any connected machine. Expectation from those sites' published headers: nearly
-every large site forbids framing, so the screenshot path is the realistic default and the iframe
-path is a bonus for small sites.
+Live survey, 22 sites, run by Mark on 2026-10-17 with the Mac's own Google Chrome in headless
+mode (`PW_CHANNEL=chrome`, because Playwright's bundled-browser installer hung on macOS; the
+harness now supports both). Full table in `spike-d-web-fallback/RESULTS.md`.
+
+| | Count | Sites |
+|---|---|---|
+| Frameable (no `X-Frame-Options`, no restrictive `frame-ancestors`) | 4 / 22 | Wikipedia, Amazon, Internet Archive, WSJ (but WSJ answered 401) |
+| Blocked by `X-Frame-Options` | 12 / 22 | NYTimes, Guardian, BBC, Washington Post, Instagram, Reddit, YouTube, Apple, Google Maps, Davidson, samplereality.com, MDN |
+| Blocked by CSP `frame-ancestors` | 6 / 22 | X, GitHub, New Yorker, Medium, Substack, Craigslist |
+| Screenshot usable (HTTP 200 and taller than one screen) | 14 / 22 | Guardian, BBC, Washington Post, Wikipedia, Reddit, GitHub, New Yorker, Substack, Amazon, Apple, Internet Archive, Davidson, samplereality.com, MDN |
+| Screenshot suspect | 8 / 22 | NYTimes (403 bot block), WSJ (401 bot block), Instagram and X (login walls), YouTube, Google Maps, Medium, Craigslist (one-screen app shells) |
+
+What this means for the design:
+
+- The iframe path is a bonus for a handful of sites, as expected. Screenshot-first is the right
+  default, and the probe now treats `https://*.example.com` in `frame-ancestors` correctly as
+  "not us" (an earlier version of the harness over-counted frameable sites).
+- The two paywalled national papers in the set, NYTimes and WSJ, refuse headless Chrome at the
+  HTTP level; the Guardian, Post, BBC and New Yorker do not. A production fallback would need
+  either a browser that passes bot checks (a real Chrome profile, residential egress) or an
+  honest "this site won't let us in" message. Both are policy choices for Phase 2.
+- Social and app-style sites screenshot as a login wall or an empty shell. That is what a
+  logged-out reader sees, and arguably on theme, but it is not an article.
+- Latency is the UX cost: 2–9 s for most sites, 26–33 s for X, the New Yorker and Amazon. A
+  viewport-only capture first (one screen, 1–3 s) with the full page arriving later would make
+  the wait bearable; the server already supports `view=1`.
+- Offline self-test (`RESULTS.LOCAL.md`) still passes: open / `DENY` / `SAMEORIGIN` /
+  `frame-ancestors 'none'` verdicts are correct against synthetic pages.
 
 Privacy and security: this is the one route where a URL leaves the reader's device. The server
 logs nothing and keeps cached PNGs for an hour; a public deployment needs the private-address

@@ -24,16 +24,13 @@ Files
 
 ## Status
 
-The harness is proven against the synthetic pages (open / `DENY` / `SAMEORIGIN` / `frame-ancestors 'none'`
-/ the Spike-0 heavy page — see `RESULTS.LOCAL.md`). **The live 22-site run has not happened**: the
-container this was built in has no outbound web access (every external host fails DNS or the
-proxy's CONNECT). Run `npm run probe` from any machine with internet; it takes about two minutes
-and writes `RESULTS.md`.
+Live survey done (2026-10-17, `RESULTS.md`): 4 / 22 sites frameable, 14 / 22 screenshots usable.
+The eight "suspect" captures are bot blocks (NYTimes 403, WSJ 401), login walls (Instagram, X)
+and one-screen app shells (YouTube, Google Maps, Medium, Craigslist). `--rebuild` regenerates
+the table from `results.json` without re-fetching, e.g. after a verdict-rule change.
 
-Expectations to check against, from these sites' published headers (not measured here): the big
-news sites, Instagram, X, YouTube, GitHub, Amazon, Google and Wikipedia all send `X-Frame-Options`
-or `frame-ancestors` that forbid framing, so the iframe path will mostly be a bonus for small and
-personal sites, and the screenshot path is the realistic default.
+The offline self-test (`sites.local.json`, `RESULTS.LOCAL.md`) covers open / `DENY` /
+`SAMEORIGIN` / `frame-ancestors 'none'` against synthetic pages.
 
 ## Notes for the findings
 
@@ -41,7 +38,8 @@ personal sites, and the screenshot path is the realistic default.
   detected-blocked frame still fires `load`, so blocked frames must be decided from headers, as
   done here, not from the frame itself.
 - Screenshots of paywalled and login-walled sites show the wall, not the article; that is the
-  honest experience of a logged-out reader and arguably on theme.
+  honest experience of a logged-out reader and arguably on theme. NYTimes and WSJ go further and
+  refuse headless Chrome at the HTTP level (403 / 401).
 - Privacy: this server sees every URL and fetches it; it logs nothing but keeps cached PNGs for an
   hour. The iOS routes never leave the device.
 - Security: a public deployment must keep the local-address block (`validateTarget`) and should add
