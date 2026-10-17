@@ -4,7 +4,7 @@
 //   node spike-0-core/bench.mjs                # no throttle
 //   node spike-0-core/bench.mjs --throttle 4   # 4x CPU slowdown (rough stand-in for a phone)
 //   node spike-0-core/bench.mjs --throttle 8 --baseline   # host page alone, no overlay
-//   node spike-0-core/bench.mjs --flora vines           # force one flora kind (flowers | vines | bushes)
+//   node spike-0-core/bench.mjs --biome desert          # force a biome (garden | meadow | trellis | hedgerow | forest | desert)
 //   node spike-0-core/bench.mjs --desktop               # 1440x900 window instead of iPhone emulation
 //   node spike-0-core/bench.mjs --cell 3 --throttle 6 --json out.json --shots ./shots
 //
@@ -17,7 +17,8 @@ const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => a.start
 const throttle = Number(args.throttle || 1);
 const cellSize = Number(args.cell || 4);
 const maxDpr = Number(args.dpr || 2);
-const flora = args.flora || 'random';
+const flora = args.flora || null;
+const biome = args.biome || 'random';
 const maxSeconds = Number(args.max || 120);
 
 const server = createStaticServer();
@@ -44,7 +45,7 @@ if (args.baseline) {
   console.log(JSON.stringify({ baseline: true, throttle, domNodes: dom, frames: base.length, avgFrameMs: avg, fps: 1000 / avg, p95FrameMs: sorted[Math.floor(sorted.length * 0.95)] }, null, 2));
   await browser.close(); server.close(); process.exit(0);
 }
-await page.evaluate(([cs, dpr, fl]) => Dirt.start({ debug: true, cellSize: cs, maxDpr: dpr, flora: fl }), [cellSize, maxDpr, flora]);
+await page.evaluate(([cs, dpr, fl, bi]) => Dirt.start({ debug: true, cellSize: cs, maxDpr: dpr, flora: fl, biome: bi }), [cellSize, maxDpr, flora, biome]);
 
 const samples = [];
 const t0 = Date.now();
@@ -57,7 +58,7 @@ while (Date.now() - t0 < maxSeconds * 1000) {
   if (!phaseTimes[st.phase]) phaseTimes[st.phase] = st.elapsed;
   if (args.shots && samples.length % 5 === 0) await page.screenshot({ path: `${args.shots}/t${Math.round(st.elapsed)}s-${st.phase}.png` });
   process.stderr.write(`${st.elapsed.toFixed(0).padStart(3)}s ${st.phase.padEnd(8)} fps ${st.fps.toFixed(0).padStart(3)} frame ${st.avgFrameMs.toFixed(1)}ms p95 ${st.p95FrameMs.toFixed(1)}ms sim ${st.simMs.toFixed(2)} draw ${st.drawMs.toFixed(2)} dirt ${(st.coverage * 100).toFixed(0)}% green ${(st.greenCoverage * 100).toFixed(0)}% tips ${st.tips}\n`);
-  if (st.phase === 'garden' && !st.running) break;
+  if (st.phase === 'garden' && !st.running) { if (args.shots) await page.screenshot({ path: `${args.shots}/final-${st.biome}.png` }); break; }
 }
 const shot = args.shot || null;
 if (shot) await page.screenshot({ path: shot });
@@ -67,7 +68,7 @@ server.close();
 const byPhase = {};
 for (const s of samples) { (byPhase[s.phase] ||= []).push(s); }
 const summary = {
-  throttle, cellSize, maxDpr, flora: samples.at(-1)?.flora, domNodes: dom, grid: samples.at(-1)?.grid, viewport: samples.at(-1)?.viewport, dpr: samples.at(-1)?.dpr,
+  throttle, cellSize, maxDpr, biome: samples.at(-1)?.biome, flora: samples.at(-1)?.flora, domNodes: dom, grid: samples.at(-1)?.grid, viewport: samples.at(-1)?.viewport, dpr: samples.at(-1)?.dpr,
   totalSeconds: samples.at(-1)?.elapsed, longFrames: samples.at(-1)?.longFrames, phaseStart: phaseTimes,
   phases: Object.fromEntries(Object.entries(byPhase).map(([p, arr]) => [p, {
     samples: arr.length,

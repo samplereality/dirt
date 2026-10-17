@@ -31,6 +31,8 @@
 <body>
 <header>
   <button id="bury">Bury</button>
+  <button id="save" title="Dirt.export() → sessionStorage">Save</button>
+  <button id="restore" title="Dirt.restore(saved)">Restore</button>
   <div class="ticker"><span>BREAKING: a sticky header with an infinite marquee, animated ads, a hue-rotating image grid and a fixed call-to-action — the sort of page Dirt has to cover.</span></div>
 </header>
 <main>
@@ -66,8 +68,16 @@
     }
     c.innerHTML = html;
   })();
+  // ?biome=desert (garden | meadow | trellis | hedgerow | forest | desert) forces a biome; default random.
+  var biome = new URLSearchParams(location.search).get('biome') || 'random';
   document.getElementById('bury').addEventListener('click', function () {
-    Dirt.start({ debug: true, onPhase: function (p) { console.log('[dirt] phase', p); } });
+    Dirt.start({ debug: true, biome: biome, onPhase: function (p) { console.log('[dirt] phase', p); } });
+  });
+  document.getElementById('save').addEventListener('click', function () {
+    var d = Dirt.export(); if (d) { sessionStorage.setItem('dirt-test-garden', JSON.stringify(d)); console.log('[dirt] saved', JSON.stringify(d).length, 'bytes'); }
+  });
+  document.getElementById('restore').addEventListener('click', function () {
+    var d = sessionStorage.getItem('dirt-test-garden'); if (d) { Dirt.restore(JSON.parse(d), { debug: true }); }
   });
 </script>
 </body>

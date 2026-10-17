@@ -1,8 +1,13 @@
 # Spike B — Safari Web Extension (Manifest V3), bundled in the same app
 
 `extension/` is a plain cross-browser MV3 extension: a toolbar/menu **action** that runs
-`scripting.executeScript` with `activeTab` to inject `dirt-core.js` and then `inject.js`
-(`Dirt.toggle({debug:true})`). No content scripts run on page load; no host permissions.
+`scripting.executeScript` with `activeTab` to inject `dirt-core.js` and then `inject.js`. No
+content scripts run on page load; no host permissions.
+
+Phase 2 (0.3): the extension **remembers gardens**. When a burial finishes, `inject.js` sends
+`Dirt.export()` to `background.js`, which keeps it in `storage.local` under the page URL (hash
+stripped). Clicking on that page later restores the garden instantly instead of burying again;
+clicking while Dirt is on screen clears it. Needs the `storage` permission; nothing leaves the browser.
 
 - `extension/manifest.json`, `background.js`, `inject.js`, `dirt-core.js` (copied in by `sh build.sh`)
 - `DirtSafariExtension/` — the Swift shell Safari requires (`com.apple.Safari.web-extension`). The

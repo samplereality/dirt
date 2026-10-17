@@ -1,5 +1,7 @@
 # Dirt — Phase 1 findings
 
+*Phase 1 is complete; Phase 2 work is tracked in [PHASE2.md](PHASE2.md). This document is the record of the feasibility phase.*
+
 Date: 2026-10-14. Author of the spikes: Claude, working from Mark Sample's project brief.
 
 ## Summary

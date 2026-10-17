@@ -8,7 +8,7 @@ bar at `z-index: 2147483000`.
 ```sh
 npm install           # playwright, pinned to the preinstalled Chromium build
 npm run serve         # http://localhost:8080/spike-0-core/test-page.html  — open on a phone on the same Wi-Fi
-npm run bench         # headless iPhone-14 emulation, prints per-phase fps / frame time
+npm run bench         # headless iPhone-14 emulation, prints per-phase fps / frame time (--biome desert to force one)
 npm run bench:phone   # same with 4x CPU throttling
 node spike-0-core/bench.mjs --throttle 8 --baseline   # the host page alone, no overlay
 ```
@@ -17,11 +17,15 @@ node spike-0-core/bench.mjs --throttle 8 --baseline   # the host page alone, no 
 
 - **Container**: one `<dirt-overlay>` element appended to `<html>`, `position:fixed; inset:0; z-index:2147483647; pointer-events:none`, all inline with `!important`, with an open Shadow DOM holding two canvases and the optional HUD.
 - **Dirt**: a falling-sand cellular automaton on a grid of `cellSize` CSS px (4 px → 98×166 cells on an iPhone 14). Shovelfuls are ~50-cell clumps thrown in from above the viewport, aimed at the lowest point of the surface; grains fall, slide diagonally and pile. Rendered through a `W×H` `ImageData` buffer scaled up with `image-rendering: pixelated`. Each run picks a fill line between 50 % and 66 % of the viewport height (`fill` option); the bury is complete when every column reaches it, air pockets below the surface are tamped, and the page above the soil line stays visible.
-- **Flora**: one of three kinds per run, chosen at random (`flora` option forces one), drawn on a device-resolution persistent canvas:
-  - *Ground flowers* sprinkle five-petal flowers and leaf pairs across the dirt until about three quarters of the soil cells are covered, so the dirt still shows through.
-  - *Vines* (three to five per side) climb the left and right edges from the soil line to the top of the window along a sine path, with alternating heart-ish leaves, trumpet flowers, and curling tendrils reaching inward, as if on a trellis.
-  - *Bushes* rise from the soil line at regular intervals across the width, each to a height of 15–25 % of the viewport (`bushHeight` option): branching tips (max depth 4) with leaves along the way and a bloom in the bush's own colour at the end of every branch.
-  The growth phase ends when that kind is finished (flowers at target density, vines at the top, bushes done branching); the loop then stops and the garden stays on screen.
+- **Biomes** (0.3.0): one per run, chosen at random (`biome` option forces one), each naming a dirt palette and a flora system:
+  - *garden* — ground flowers and leaf pairs carpet the dirt in drifts, each blooming at its own pace (0.8–3.5 s) until about three quarters of the soil is covered.
+  - *meadow* — grass blades as curved strokes growing at their own speed, with scattered wildflowers.
+  - *trellis* — vines climb both window edges from the soil line to the top, with leaves, trumpet flowers and tendrils.
+  - *hedgerow* — flowering bushes rise 15–25 % of the viewport above the soil line.
+  - *forest* — dark loam; tall trunks (25–42 % of the viewport) with a few branches and a leafy canopy.
+  - *desert* — sandy dirt; columnar cacti with arms and spines, barrel cacti, the odd flower on top.
+  Growth is staggered: per-plant delays and rates, and for the carpets a few wandering cluster centres decide where the next sprout lands.
+- **Export / restore**: `Dirt.export()` returns the biome, fill, per-column soil profile and every plant primitive (25–35 KB); `Dirt.restore(data)` rebuilds it in the current viewport as a finished garden. The test page's Save / Restore buttons exercise it via `sessionStorage`; the extension keeps real ones in `storage.local`.
 - **Resize / rotation keeps the scene.** Every plant primitive (stem polyline, leaf, flower, tendril) is recorded in a display list as it is drawn; on a resize the pile is rebuilt from its old surface profile (same depth fraction per column), anchor positions are transformed, and the plants are replayed at their original sizes, so nothing goes oblong. A modest height-only change (Safari's address bar) translates instead of scaling, so the pile stays put. The viewport size is polled from the frame loop and a 400 ms timer as well as from `resize` events, because the share-sheet injection context never delivered the event.
 - **Feel**: shovelfuls vary in size (0.5–1.6×) and arrive on an irregular rhythm; each clump has its own gravity and terminal velocity and loosens slightly as it falls; the sand simulation ticks at `simHz` (default 30) under a 60 fps render for a less "soap-opera" smoothness. A second, shallower slide rule in the sand automaton rounds the mound peaks instead of leaving 45° ridges.
 - **Instrumentation**: `Dirt.stats()` returns fps, mean and p95 frame time, sim/draw ms, long-frame count, coverage, and a frame counter (`Dirt.ping()`) used as a heartbeat by the extension spikes. `debug: true` shows these in a HUD.
@@ -39,7 +43,7 @@ the whole viewport, ran at 42 fps at 4× and 20 fps at 8×; the three-system gar
 coarser grid or a 1× growth canvas made no difference on that version, which is what points at
 compositing rather than draw calls.)
 
-Timeline at every setting: bury ≈ 16 s, then flowers ≈ 13 s, bushes ≈ 17 s or vines ≈ 27 s.
+Timeline (0.3.0, phone size): bury ≈ 18 s, then meadow ≈ 11 s, forest ≈ 19 s, garden / hedgerow / desert ≈ 23 s, trellis ≈ 33 s.
 
 **On a real iPhone 16 Pro, iOS 27.0.1** (Mark, 2026-10-16, nytimes.com via the share-sheet extension): 57–60 fps, 16–17 ms per frame, p95 flat, through both phases.
 
@@ -50,4 +54,4 @@ A real iPhone composites canvases on the GPU, so the on-device number is the one
 the success criterion (~60 fps on a recent iPhone over a heavy page) is **plausible but
 unverified** until `test-page.html` is opened on a phone (`npm run serve`).
 
-Screenshots: `../docs/spike0-burying.png` (t = 10 s) and the end state of each kind: `../docs/spike0-flowers.png`, `../docs/spike0-vines.png`, `../docs/spike0-bushes.png`.
+Screenshots: `../docs/spike0-burying.png` (t = 10 s) and the end state of each biome: `../docs/biome-garden.png`, `biome-meadow.png`, `biome-trellis.png`, `biome-hedgerow.png`, `biome-forest.png`, `biome-desert.png`.
