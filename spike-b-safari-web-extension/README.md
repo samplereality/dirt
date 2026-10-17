@@ -18,8 +18,13 @@ Phase 2 (0.4): the extension **remembers gardens, and brings them back at page l
   the tab (`tabs.captureVisibleTab` in the background, allowed by `activeTab` after a click) and
   hands it to the share sheet, or downloads it. After a silent page-load restore the capture is
   refused (Chrome requires a click or all-sites access), so the picture is the garden alone.
-- Permissions: `activeTab`, `scripting`, `storage`, plus optional site access. Nothing leaves the
-  browser.
+- Album: when a garden finishes, `shared.js` saves the scene together with a 320-px JPEG
+  thumbnail (the tab capture if the tab is in front, else the garden alone) and the page title.
+  A grid-icon button beside the share button opens `album.html` in a new tab (it is also the
+  extension's options page): thumbnails, titles, biomes, dates, Visit and Forget. Storage keys:
+  `garden:<url>`, `thumb:<url>`, `album:index`.
+- Permissions: `activeTab`, `scripting`, `storage`, `unlimitedStorage`, plus optional site access.
+  Nothing leaves the browser.
 
 ## Builds
 
@@ -33,7 +38,7 @@ restored without a click. The per-site prompt itself needs a real browser: on th
 a site, Chrome shows "Allow Dirt to read and change data on …?"; Firefox and Safari show their
 usual site-access prompt.
 
-- `extension/manifest.json`, `background.js`, `inject.js`, `autorestore.js`, `dirt-core.js` (copied in by `sh build.sh`)
+- `extension/manifest.json`, `background.js` (storage, capture, album index), `shared.js` (content-script helpers: capture, thumbnail, save), `inject.js` (click), `autorestore.js` (page load), `album.html/css/js`, `dirt-core.js` (copied in by `sh build.sh`)
 - `DirtSafariExtension/` — the Swift shell Safari requires (`com.apple.Safari.web-extension`). The
   extension files are copied flat into the `.appex` so `manifest.json` sits at the bundle's resource root.
 

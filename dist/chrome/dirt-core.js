@@ -46,6 +46,7 @@
     shareButton: true,  // show a share button in the lower corner once the garden is complete
     capture: null,      // optional async function → PNG data URL / Blob of the whole tab (host provides, e.g. tabs.captureVisibleTab)
     shareTitle: 'Dirt', // title/text handed to the share sheet
+    onAlbum: null,      // optional function; when given, a second corner button opens the host's album
     debug: false,       // show the FPS / heartbeat HUD
     onPhase: null       // function(phase, dirt) — 'burying' | 'growing' | 'garden' | 'stopped'
   };
@@ -103,7 +104,7 @@
     return {
       opts: opts,
       phase: 'idle',
-      host: null, shadow: null, dirtCanvas: null, growCanvas: null, hud: null, btn: null, toast: null, sharing: false,
+      host: null, shadow: null, dirtCanvas: null, growCanvas: null, hud: null, btn: null, albumBtn: null, toast: null, sharing: false,
       dctx: null, gctx: null, off: null, octx: null, img: null, buf: null,
       cw: 0, ch: 0, dpr: 1, W: 0, H: 0,
       grid: null, green: null,
@@ -140,6 +141,7 @@
       'background:rgba(20,24,16,.78);color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;' +
       'opacity:0;transition:opacity .4s;-webkit-tap-highlight-color:transparent;}' +
       '.share.on{display:flex;opacity:1}.share:active{transform:scale(.94)}' +
+      '.share.album{right:calc(max(14px,env(safe-area-inset-right,0)) + 56px)}' +
       '.share svg{width:22px;height:22px;display:block}' +
       '.toast{position:absolute;right:max(14px,env(safe-area-inset-right,0));bottom:calc(max(14px,env(safe-area-inset-bottom,0)) + 56px);' +
       'padding:6px 10px;border-radius:6px;background:rgba(20,24,16,.85);color:#fff;font:13px/1.3 -apple-system,system-ui,sans-serif;' +
@@ -165,6 +167,16 @@
       shadow.appendChild(btn);
       var toast = doc.createElement('div'); toast.className = 'toast'; shadow.appendChild(toast);
       s.btn = btn; s.toast = toast;
+      if (typeof s.opts.onAlbum === 'function') {
+        var alb = doc.createElement('button');
+        alb.className = 'share album'; alb.type = 'button';
+        alb.setAttribute('aria-label', 'Open your album of buried pages');
+        alb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+        alb.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); try { s.opts.onAlbum(API); } catch (err) { /* host callback error ignored */ } });
+        shadow.appendChild(alb);
+        s.albumBtn = alb;
+      }
     }
     (doc.documentElement || doc.body).appendChild(host);
     s.host = host; s.shadow = shadow; s.dirtCanvas = dirtCanvas; s.growCanvas = growCanvas;
@@ -935,7 +947,7 @@
   // ---------------------------------------------------------------- loop
   function setPhase(s, p) {
     s.phase = p; s.tPhase = now();
-    if (s.btn) { if (p === 'garden') { s.btn.classList.add('on'); } else { s.btn.classList.remove('on'); } }
+    [s.btn, s.albumBtn].forEach(function (b) { if (b) { if (p === 'garden') { b.classList.add('on'); } else { b.classList.remove('on'); } } });
     if (typeof s.opts.onPhase === 'function') { try { s.opts.onPhase(p, API); } catch (e) { /* host callback error ignored */ } }
   }
 
@@ -1164,12 +1176,14 @@
     // Heartbeat for the extension spikes: call from outside (e.g. WKWebView.evaluateJavaScript)
     // a few seconds apart; if the number keeps rising, the loop survived.
     ping: function () { return S ? S.frames : -1; },
+    // A PNG Blob of the garden alone (no page), composed by the module; needs no permission.
+    picture: function () { return S ? composeOverlay(S) : Promise.resolve(null); },
     // Snapshot the page with its garden and hand it to the share sheet (or download it).
     // Uses opts.capture (whole tab, provided by the host) when available, else the garden alone.
     share: function () {
       var s = S; if (!s || s.sharing) { return Promise.resolve(false); }
       s.sharing = true;
-      var hidden = [s.btn, s.hud, s.toast].filter(Boolean);
+      var hidden = [s.btn, s.albumBtn, s.hud, s.toast].filter(Boolean);
       hidden.forEach(function (el) { el.style.visibility = 'hidden'; });
       var cap = s.opts.capture;
       return nextPaint()

@@ -18,7 +18,7 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 | 4 | Saved gardens: revisit a buried page and the garden is already there, no click | core `Dirt.export()` / `Dirt.restore()`; extension `storage.local` keyed by URL; `autorestore.js` content script on allowed sites | **done** (ext 0.4), verified headless; needs a real-browser check of the per-site prompt |
 | 5 | Dirt that follows links, diminishing over the next few pages | background per-tab budget + injection on navigation | next; the per-site permission from feature 4 covers it on the same site, cross-site needs the destination site allowed too |
 | 6 | Snapshot-and-share icon in a corner of the overlay | core: share button + `Dirt.share()`; extension: `tabs.captureVisibleTab`; Web Share API with download fallback | **done** (core 0.3, ext 0.4); see capture note below |
-| 7 | Album of buried sites with thumbnails | thumbnail at completion → IndexedDB in background; album page inside the extension | next, after 6 |
+| 7 | Album of buried sites with thumbnails | thumbnail + title saved with the scene in `storage.local`; `album.html` inside the extension (also its options page); grid-icon button in the overlay opens it | **done** (ext 0.5) |
 
 ## Decisions already made
 
@@ -32,9 +32,16 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
   a page also asks, through the browser's own prompt, to run on that site in future; that is what
   lets a garden come back at page load. Declined → the garden still returns on the next click.
   No `<all_urls>` at install, so no scary store warning and the privacy note stays simple.
-- **Storage**: `storage.local` for scenes (needs only the `storage` permission; ~10 MB default in
-  Chrome, so 250+ gardens before `unlimitedStorage` is needed). Thumbnails go to IndexedDB in the
-  background script, never to the page's own storage. No `storage.sync`.
+- **Storage**: everything in `storage.local` with `unlimitedStorage` (no prompt in any browser):
+  `garden:<url>` the scene (8–35 KB), `thumb:<url>` a 320-px JPEG (30–50 KB), `album:index` the
+  list the album renders from. Never the page's own storage. No `storage.sync`.
+- **What the album records.** Per garden: the URL, the page title (read once by the extension's
+  content script as the label; the core itself still never reads the page), hostname, biome,
+  fill, date, and a thumbnail. The thumbnail is the tab capture when the tab is still in front
+  when the garden completes, otherwise the garden alone. All of it stays on the device; the
+  privacy note should say the extension keeps a list of buried pages with small pictures of them.
+- **Forget**: per card in the album, or everything at once. Forgetting a page means the next
+  click on it buries it afresh.
 - **Share-sheet action (iOS)** stays as the quick entry but cannot save or restore: its script
   lives in the page and has no extension storage. The Web Extension is the foundation.
 - **What the shared picture contains.** After a click on the extension button, the picture is the
@@ -70,7 +77,11 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
    hides itself and the HUD for the capture, then hands a PNG to the share sheet where the Web
    Share API supports files (iPhone, Android, desktop Safari and Edge) or downloads it. Verify on
    the iPhone that Safari honours `captureVisibleTab` and that the share sheet opens.
-4. Album (7): thumbnails + extension page, with "forget" and "regrow".
+4. ~~Album (7).~~ Done: `album.html` lists every saved garden newest first with thumbnail, title,
+   host, biome and date; Visit opens the page (the garden restores itself on allowed sites);
+   Forget per card or for all. Reached from the grid-icon button beside the share button, or from
+   the extension's settings (it is the options page). Verified in headless Chromium: two burials
+   → two cards with thumbnails → forget one → storage cleaned.
 5. Dirt follows links (5), once the permission decision is made.
 6. Distribution: Chrome Web Store and Firefox Add-ons listings; the iOS app on TestFlight via the
    colleague's account (`ios/Config.xcconfig` carries no Team ID, so the move is a one-line edit).

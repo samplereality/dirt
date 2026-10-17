@@ -21,8 +21,7 @@ cp "$CORE" "$EXT/dirt-core.js"
 
 rm -rf dist/chrome dist/firefox
 mkdir -p dist/chrome dist/firefox
-cp "$EXT"/*.js dist/chrome/
-cp "$EXT"/*.js dist/firefox/
+for f in "$EXT"/*; do case "$f" in *manifest.json) ;; *) cp "$f" dist/chrome/; cp "$f" dist/firefox/ ;; esac; done
 node - "$EXT/manifest.json" <<'JS'
 const fs = require('fs');
 const src = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));

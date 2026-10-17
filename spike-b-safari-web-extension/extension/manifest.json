@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bury with Dirt",
-  "version": "0.4",
+  "version": "0.5",
   "description": "Buries the current page under shovelfuls of dirt, then lets a garden grow over it. Remembers each garden on this device. Draws on top of the page only; sends nothing anywhere.",
   "action": {
     "default_title": "Bury with Dirt"
@@ -9,7 +9,8 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "unlimitedStorage"
   ],
   "background": {
     "service_worker": "background.js",
@@ -36,9 +37,14 @@
       ],
       "js": [
         "dirt-core.js",
+        "shared.js",
         "autorestore.js"
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "options_ui": {
+    "page": "album.html",
+    "open_in_tab": true
+  }
 }
