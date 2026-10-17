@@ -17,7 +17,7 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 | 3 | More biomes with their own dirt colour: garden, meadow, trellis, hedgerow, forest, desert | core: biome table + palettes + flora systems | **done** (0.3.0); more biomes are additive |
 | 4 | Saved gardens: revisit a buried page and the garden is already there, no click | core `Dirt.export()` / `Dirt.restore()`; extension `storage.local` keyed by URL; `autorestore.js` content script on allowed sites | **done** (ext 0.4), verified headless; needs a real-browser check of the per-site prompt |
 | 5 | Dirt that follows links, diminishing over the next few pages | background per-tab budget + injection on navigation | next; the per-site permission from feature 4 covers it on the same site, cross-site needs the destination site allowed too |
-| 6 | Snapshot-and-share icon in a corner of the overlay | overlay corner control; `tabs.captureVisibleTab` in background; Web Share API / download | next |
+| 6 | Snapshot-and-share icon in a corner of the overlay | core: share button + `Dirt.share()`; extension: `tabs.captureVisibleTab`; Web Share API with download fallback | **done** (core 0.3, ext 0.4); see capture note below |
 | 7 | Album of buried sites with thumbnails | thumbnail at completion → IndexedDB in background; album page inside the extension | next, after 6 |
 
 ## Decisions already made
@@ -37,6 +37,18 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
   background script, never to the page's own storage. No `storage.sync`.
 - **Share-sheet action (iOS)** stays as the quick entry but cannot save or restore: its script
   lives in the page and has no extension storage. The Web Extension is the foundation.
+- **What the shared picture contains.** After a click on the extension button, the picture is the
+  whole visible tab, page and garden together (`activeTab` allows `captureVisibleTab`). After a
+  silent page-load restore there has been no click, and Chrome refuses the capture unless the
+  extension holds all-sites permission, so the core falls back to a picture of the garden alone on
+  a plain background, which it composes itself with no permission at all. The share-sheet action
+  and the web fallback always get the garden-alone picture. Verified in headless Chromium: the
+  error is exactly "Either the '<all_urls>' or 'activeTab' permission is required", and a per-site
+  grant does not satisfy it.
+- **Per-browser builds.** Chrome and Firefox disagree on the manifest keys for optional site
+  access (`optional_host_permissions` vs. optional `host_permissions`) and for the background
+  script. `sh build.sh` writes warning-free `dist/chrome/` and `dist/firefox/`; `extension/` stays
+  the source and the Safari target.
 
 ## Decisions for Mark
 
@@ -53,10 +65,11 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 
 1. ~~Core: fill cap, varied growth, biomes, export/restore.~~ Done.
 2. ~~Extension: save on completion, restore at page load (per-site permission) or on click.~~ Done; verify the prompt on desktop and iPhone.
-3. Snapshot and share (6): corner control in the overlay (the only interactive part; the rest stays
-   click-through), background capture, share sheet on mobile, download on desktop. Verify Safari
-   iOS honours `captureVisibleTab` from a web extension — if not, the fallback is sharing the
-   garden canvas alone (no page) which the core can produce itself.
+3. ~~Snapshot and share (6).~~ Done: a round share button appears in the lower-right corner when
+   the garden completes (the only interactive part of the overlay; the rest stays click-through),
+   hides itself and the HUD for the capture, then hands a PNG to the share sheet where the Web
+   Share API supports files (iPhone, Android, desktop Safari and Edge) or downloads it. Verify on
+   the iPhone that Safari honours `captureVisibleTab` and that the share sheet opens.
 4. Album (7): thumbnails + extension page, with "forget" and "regrow".
 5. Dirt follows links (5), once the permission decision is made.
 6. Distribution: Chrome Web Store and Firefox Add-ons listings; the iOS app on TestFlight via the

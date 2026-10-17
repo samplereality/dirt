@@ -7,6 +7,10 @@
   if (!api || !api.runtime || typeof Dirt === 'undefined') return;
   if (window !== window.top) return;
   api.runtime.sendMessage({ type: 'dirt:lookup', url: location.href })
-    .then((data) => { if (data && Dirt.phase === 'idle') Dirt.restore(data, { debug: false }); })
+    .then((data) => {
+      if (data && Dirt.phase === 'idle') {
+        Dirt.restore(data, { debug: false, capture: () => api.runtime.sendMessage({ type: 'dirt:capture' }).then(u => u || null) });
+      }
+    })
     .catch(() => {});
 })();

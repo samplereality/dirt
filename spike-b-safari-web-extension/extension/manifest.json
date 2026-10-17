@@ -29,9 +29,6 @@
   "optional_host_permissions": [
     "*://*/*"
   ],
-  "optional_permissions": [
-    "*://*/*"
-  ],
   "content_scripts": [
     {
       "matches": [

@@ -14,9 +14,19 @@ Phase 2 (0.4): the extension **remembers gardens, and brings them back at page l
   sites only, at `document_idle`) asks the background for the saved scene and restores it with no
   click and no HUD. If the site was not allowed, the garden still comes back on the next click.
 - Click while Dirt is on screen: clears it. "Forget this garden" will live in the album.
-- Permissions: `activeTab`, `scripting`, `storage`, plus optional site access declared as
-  `optional_host_permissions` (Chrome) and as host patterns in `optional_permissions` (Firefox,
-  Safari); each browser warns about the key it does not use. Nothing leaves the browser.
+- Share: once the garden completes, a round button in the lower-right corner takes a picture of
+  the tab (`tabs.captureVisibleTab` in the background, allowed by `activeTab` after a click) and
+  hands it to the share sheet, or downloads it. After a silent page-load restore the capture is
+  refused (Chrome requires a click or all-sites access), so the picture is the garden alone.
+- Permissions: `activeTab`, `scripting`, `storage`, plus optional site access. Nothing leaves the
+  browser.
+
+## Builds
+
+`sh build.sh` (repo root) writes two warning-free, store-ready copies: `dist/chrome/` (service
+worker, `optional_host_permissions`) and `dist/firefox/` (background scripts, optional
+`host_permissions`, gecko id). Load those in Chrome and Firefox; `extension/` remains the source
+and what the Safari target in Xcode copies.
 
 Verified in headless Chromium with Playwright (`localhost` pre-granted): bury → save → reload →
 restored without a click. The per-site prompt itself needs a real browser: on the first click on
@@ -41,8 +51,8 @@ non-persistent background page, which is a fallback if the service worker misbeh
 
 ## Same code on desktop
 
-- **Chrome**: chrome://extensions → Developer mode → *Load unpacked* → `extension/`. Click the toolbar icon.
-- **Firefox** (121+): about:debugging → This Firefox → *Load Temporary Add-on* → `extension/manifest.json`.
+- **Chrome**: chrome://extensions → Developer mode → *Load unpacked* → `dist/chrome/`. Click the toolbar icon.
+- **Firefox** (121+): about:debugging → This Firefox → *Load Temporary Add-on* → `dist/firefox/manifest.json`.
 - **Safari (macOS)**: the same `DirtSafariExtension` target in a macOS build; or `xcrun safari-web-extension-converter extension/` to generate a throwaway project.
 
 Expected result: identical behaviour, since the code uses only `action`, `scripting` and `activeTab`.

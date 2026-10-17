@@ -43,6 +43,9 @@
     cactusHeight: [0.12, 0.3],
     maxDpr: 2,          // cap device pixel ratio for the growth canvas
     maxTips: 320,       // concurrent growing bush tips
+    shareButton: true,  // show a share button in the lower corner once the garden is complete
+    capture: null,      // optional async function → PNG data URL / Blob of the whole tab (host provides, e.g. tabs.captureVisibleTab)
+    shareTitle: 'Dirt', // title/text handed to the share sheet
     debug: false,       // show the FPS / heartbeat HUD
     onPhase: null       // function(phase, dirt) — 'burying' | 'growing' | 'garden' | 'stopped'
   };
@@ -100,7 +103,7 @@
     return {
       opts: opts,
       phase: 'idle',
-      host: null, shadow: null, dirtCanvas: null, growCanvas: null, hud: null,
+      host: null, shadow: null, dirtCanvas: null, growCanvas: null, hud: null, btn: null, toast: null, sharing: false,
       dctx: null, gctx: null, off: null, octx: null, img: null, buf: null,
       cw: 0, ch: 0, dpr: 1, W: 0, H: 0,
       grid: null, green: null,
@@ -131,7 +134,16 @@
     style.textContent = ':host{all:initial;display:block}' +
       'canvas{position:absolute;top:0;left:0;width:100%;height:100%;display:block;image-rendering:pixelated;}' +
       '.hud{position:absolute;top:env(safe-area-inset-top,0);left:0;margin:4px;padding:4px 6px;font:11px/1.35 ui-monospace,Menlo,monospace;' +
-      'color:#b8ffb0;background:rgba(0,0,0,.72);border-radius:4px;white-space:pre;pointer-events:none;}';
+      'color:#b8ffb0;background:rgba(0,0,0,.72);border-radius:4px;white-space:pre;pointer-events:none;}' +
+      '.share{position:absolute;right:max(14px,env(safe-area-inset-right,0));bottom:max(14px,env(safe-area-inset-bottom,0));' +
+      'width:46px;height:46px;border-radius:50%;border:0;padding:0;margin:0;cursor:pointer;pointer-events:auto;' +
+      'background:rgba(20,24,16,.78);color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;' +
+      'opacity:0;transition:opacity .4s;-webkit-tap-highlight-color:transparent;}' +
+      '.share.on{display:flex;opacity:1}.share:active{transform:scale(.94)}' +
+      '.share svg{width:22px;height:22px;display:block}' +
+      '.toast{position:absolute;right:max(14px,env(safe-area-inset-right,0));bottom:calc(max(14px,env(safe-area-inset-bottom,0)) + 56px);' +
+      'padding:6px 10px;border-radius:6px;background:rgba(20,24,16,.85);color:#fff;font:13px/1.3 -apple-system,system-ui,sans-serif;' +
+      'pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap}.toast.on{opacity:1}';
     shadow.appendChild(style);
     var dirtCanvas = doc.createElement('canvas');
     var growCanvas = doc.createElement('canvas');
@@ -142,6 +154,17 @@
       hud.className = 'hud';
       shadow.appendChild(hud);
       s.hud = hud;
+    }
+    if (s.opts.shareButton) {
+      var btn = doc.createElement('button');
+      btn.className = 'share'; btn.type = 'button';
+      btn.setAttribute('aria-label', 'Share a picture of this garden');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+      btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); API.share(); });
+      shadow.appendChild(btn);
+      var toast = doc.createElement('div'); toast.className = 'toast'; shadow.appendChild(toast);
+      s.btn = btn; s.toast = toast;
     }
     (doc.documentElement || doc.body).appendChild(host);
     s.host = host; s.shadow = shadow; s.dirtCanvas = dirtCanvas; s.growCanvas = growCanvas;
@@ -912,6 +935,7 @@
   // ---------------------------------------------------------------- loop
   function setPhase(s, p) {
     s.phase = p; s.tPhase = now();
+    if (s.btn) { if (p === 'garden') { s.btn.classList.add('on'); } else { s.btn.classList.remove('on'); } }
     if (typeof s.opts.onPhase === 'function') { try { s.opts.onPhase(p, API); } catch (e) { /* host callback error ignored */ } }
   }
 
@@ -954,6 +978,60 @@
   }
 
   function onResize() { if (S && S.host) { checkSize(S); } }
+
+  // ---------------------------------------------------------------- snapshot & share
+  function nextPaint() { return new Promise(function (res) { root.requestAnimationFrame(function () { root.requestAnimationFrame(res); }); }); }
+
+  function dataUrlToBlob(u) {
+    var m = /^data:([^;,]+)(;base64)?,(.*)$/.exec(u);
+    if (!m) { return null; }
+    var bin = m[2] ? atob(m[3]) : decodeURIComponent(m[3]), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) { arr[i] = bin.charCodeAt(i); }
+    return new Blob([arr], { type: m[1] });
+  }
+
+  // Picture of the garden alone (no page), composited by the module itself: needs no permission.
+  function composeOverlay(s) {
+    return new Promise(function (res) {
+      var c = root.document.createElement('canvas');
+      c.width = s.growCanvas.width; c.height = s.growCanvas.height;
+      var x = c.getContext('2d');
+      x.fillStyle = '#f7f4ee'; x.fillRect(0, 0, c.width, c.height);
+      x.imageSmoothingEnabled = false;
+      x.drawImage(s.dirtCanvas, 0, 0, c.width, c.height);
+      x.imageSmoothingEnabled = true;
+      x.drawImage(s.growCanvas, 0, 0);
+      c.toBlob(function (b) { res(b); }, 'image/png');
+    });
+  }
+
+  function showToast(s, text) {
+    if (!s.toast) { return; }
+    s.toast.textContent = text; s.toast.classList.add('on');
+    clearTimeout(s.toastTimer);
+    s.toastTimer = setTimeout(function () { if (s.toast) { s.toast.classList.remove('on'); } }, 1800);
+  }
+
+  function deliver(s, blob) {
+    var nav = root.navigator, name = 'dirt-' + s.biome + '-' + new Date().toISOString().slice(0, 10) + '.png';
+    var file = (typeof File !== 'undefined') ? new File([blob], name, { type: 'image/png' }) : null;
+    if (file && nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+      return nav.share({ files: [file], title: s.opts.shareTitle }).then(function () { showToast(s, 'Shared'); }, function (e) {
+        if (!(e && e.name === 'AbortError')) { download(s, blob, name); }
+      });
+    }
+    download(s, blob, name);
+    return Promise.resolve();
+  }
+
+  function download(s, blob, name) {
+    var doc = root.document, url = URL.createObjectURL(blob), a = doc.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
+    (doc.body || doc.documentElement).appendChild(a);
+    a.click();
+    setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 2000);
+    showToast(s, 'Picture saved');
+  }
 
   function r1(v) { return Math.round(v * 10) / 10; }
   function r2(v) { return Math.round(v * 100) / 100; }
@@ -1085,7 +1163,24 @@
     },
     // Heartbeat for the extension spikes: call from outside (e.g. WKWebView.evaluateJavaScript)
     // a few seconds apart; if the number keeps rising, the loop survived.
-    ping: function () { return S ? S.frames : -1; }
+    ping: function () { return S ? S.frames : -1; },
+    // Snapshot the page with its garden and hand it to the share sheet (or download it).
+    // Uses opts.capture (whole tab, provided by the host) when available, else the garden alone.
+    share: function () {
+      var s = S; if (!s || s.sharing) { return Promise.resolve(false); }
+      s.sharing = true;
+      var hidden = [s.btn, s.hud, s.toast].filter(Boolean);
+      hidden.forEach(function (el) { el.style.visibility = 'hidden'; });
+      var cap = s.opts.capture;
+      return nextPaint()
+        .then(function () { return cap ? Promise.resolve().then(cap).catch(function () { return null; }) : null; })
+        .then(function (shot) {
+          if (typeof shot === 'string') { shot = dataUrlToBlob(shot); }
+          return (shot && shot.size) ? shot : composeOverlay(s);
+        })
+        .then(function (blob) { hidden.forEach(function (el) { el.style.visibility = ''; }); return deliver(s, blob); })
+        .then(function () { s.sharing = false; return true; }, function () { hidden.forEach(function (el) { el.style.visibility = ''; }); s.sharing = false; showToast(s, 'Could not share'); return false; });
+    }
   };
 
   root.Dirt = API;

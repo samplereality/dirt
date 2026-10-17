@@ -13,10 +13,13 @@
 
   if (Dirt.phase !== 'idle') { Dirt.stop(); return; }
 
-  if (saved) { Dirt.restore(saved, { debug: true }); return; }
+  const capture = () => api.runtime.sendMessage({ type: 'dirt:capture' }).then(u => u || null);
+
+  if (saved) { Dirt.restore(saved, { debug: true, capture }); return; }
 
   Dirt.start({
     debug: true,
+    capture,
     onPhase: (phase) => {
       if (phase !== 'garden') return;
       const data = Dirt.export();

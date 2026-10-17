@@ -54,6 +54,14 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     api.storage.local.get(key).then(r => sendResponse(r[key] || null));
     return true;
   }
+  if (msg.type === 'dirt:capture') {
+    // Picture of the visible tab, garden included. Allowed by activeTab (after a click) or by the
+    // site permission granted on the first bury; when neither applies the core falls back to a
+    // picture of the garden alone. The image goes back to the page's content script and nowhere else.
+    const windowId = sender && sender.tab ? sender.tab.windowId : undefined;
+    api.tabs.captureVisibleTab(windowId, { format: 'png' }).then(u => sendResponse(u || null), () => sendResponse(null));
+    return true;
+  }
   if (msg.type === 'dirt:forget' && msg.url) {
     api.storage.local.remove(gardenKey(msg.url)).then(() => sendResponse({ ok: true }));
     return true;
