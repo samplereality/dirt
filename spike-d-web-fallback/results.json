@@ -1,0 +1,596 @@
+[
+  {
+    "name": "NYTimes",
+    "category": "news, ad-heavy, paywall",
+    "url": "https://www.nytimes.com/",
+    "probe": {
+      "url": "https://www.nytimes.com/",
+      "finalUrl": "https://www.nytimes.com/",
+      "status": 403,
+      "ms": 424,
+      "frameable": false,
+      "reason": "X-Frame-Options DENY",
+      "xFrameOptions": "DENY",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.nytimes.com/",
+      "fullPage": true,
+      "ms": 11826,
+      "width": 390,
+      "height": 664,
+      "title": "nytimes.com",
+      "finalUrl": "https://www.nytimes.com/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Guardian",
+    "category": "news, ad-heavy",
+    "url": "https://www.theguardian.com/international",
+    "probe": {
+      "url": "https://www.theguardian.com/international",
+      "finalUrl": "https://www.theguardian.com/international",
+      "status": 200,
+      "ms": 339,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.theguardian.com/international",
+      "fullPage": true,
+      "ms": 8558,
+      "width": 390,
+      "height": 12000,
+      "title": "Latest news, sport and opinion from the Guardian",
+      "finalUrl": "https://www.theguardian.com/international",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "BBC",
+    "category": "news",
+    "url": "https://www.bbc.com/news",
+    "probe": {
+      "url": "https://www.bbc.com/news",
+      "finalUrl": "https://www.bbc.com/news",
+      "status": 200,
+      "ms": 240,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.bbc.com/news",
+      "fullPage": true,
+      "ms": 6713,
+      "width": 390,
+      "height": 10196,
+      "title": "BBC News - Breaking news, video and the latest top stories from the U.S. and around the world",
+      "finalUrl": "https://www.bbc.com/news",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Washington Post",
+    "category": "news, paywall",
+    "url": "https://www.washingtonpost.com/",
+    "probe": {
+      "url": "https://www.washingtonpost.com/",
+      "finalUrl": "https://www.washingtonpost.com/",
+      "status": 200,
+      "ms": 438,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.washingtonpost.com/",
+      "fullPage": true,
+      "ms": 8822,
+      "width": 390,
+      "height": 12000,
+      "title": "The Washington Post - Breaking news and latest headlines, U.S. news, world news, and video",
+      "finalUrl": "https://www.washingtonpost.com/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Wikipedia",
+    "category": "reference",
+    "url": "https://en.wikipedia.org/wiki/Soil",
+    "probe": {
+      "url": "https://en.wikipedia.org/wiki/Soil",
+      "finalUrl": "https://en.wikipedia.org/wiki/Soil",
+      "status": 200,
+      "ms": 412,
+      "frameable": true,
+      "reason": "no framing restrictions in headers",
+      "xFrameOptions": null,
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://en.wikipedia.org/wiki/Soil",
+      "fullPage": true,
+      "ms": 3831,
+      "width": 390,
+      "height": 7088,
+      "title": "Soil - Wikipedia",
+      "finalUrl": "https://en.wikipedia.org/wiki/Soil",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Instagram",
+    "category": "social, login wall",
+    "url": "https://www.instagram.com/",
+    "probe": {
+      "url": "https://www.instagram.com/",
+      "finalUrl": "https://www.instagram.com/",
+      "status": 200,
+      "ms": 304,
+      "frameable": false,
+      "reason": "X-Frame-Options DENY",
+      "xFrameOptions": "DENY",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.instagram.com/",
+      "fullPage": true,
+      "ms": 2326,
+      "width": 390,
+      "height": 709,
+      "title": "Instagram",
+      "finalUrl": "https://www.instagram.com/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "X / Twitter",
+    "category": "social, JS app",
+    "url": "https://x.com/",
+    "probe": {
+      "url": "https://x.com/",
+      "finalUrl": "https://x.com/",
+      "status": 200,
+      "ms": 637,
+      "frameable": false,
+      "reason": "CSP frame-ancestors 'self' https://x.com https://x.com:443 https://twitter.com https://twitter.com:443 (allows some origins; may still block ours)",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": "'self' https://x.com https://x.com:443 https://twitter.com https://twitter.com:443"
+    },
+    "shot": {
+      "url": "https://x.com/",
+      "fullPage": true,
+      "ms": 26169,
+      "width": 390,
+      "height": 664,
+      "title": "X. It’s what’s happening / X",
+      "finalUrl": "https://x.com/",
+      "error": null,
+      "waitUsed": "load",
+      "cached": false
+    }
+  },
+  {
+    "name": "Reddit",
+    "category": "social, JS app",
+    "url": "https://www.reddit.com/r/gardening/",
+    "probe": {
+      "url": "https://www.reddit.com/r/gardening/",
+      "finalUrl": "https://www.reddit.com/r/gardening/",
+      "status": 200,
+      "ms": 155,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.reddit.com/r/gardening/",
+      "fullPage": true,
+      "ms": 8452,
+      "width": 390,
+      "height": 12000,
+      "title": "Gardening, Plants, and Agriculture.",
+      "finalUrl": "https://www.reddit.com/r/gardening/?solution=72573830186488057257383018648805&js_challenge=1&jsc_token=2824be10929bdc604753c70a67a1c331ca13e41febb828f4bb32a8a17d758458&jsc_orig_r=",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "YouTube",
+    "category": "video, JS app",
+    "url": "https://www.youtube.com/",
+    "probe": {
+      "url": "https://www.youtube.com/",
+      "finalUrl": "https://m.youtube.com/",
+      "status": 200,
+      "ms": 666,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.youtube.com/",
+      "fullPage": true,
+      "ms": 2404,
+      "width": 390,
+      "height": 664,
+      "title": "YouTube",
+      "finalUrl": "https://m.youtube.com/?ra=m",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "GitHub",
+    "category": "app",
+    "url": "https://github.com/samplereality/dirt",
+    "probe": {
+      "url": "https://github.com/samplereality/dirt",
+      "finalUrl": "https://github.com/samplereality/dirt",
+      "status": 200,
+      "ms": 812,
+      "frameable": false,
+      "reason": "CSP frame-ancestors 'none'",
+      "xFrameOptions": "DENY",
+      "frameAncestors": "'none'"
+    },
+    "shot": {
+      "url": "https://github.com/samplereality/dirt",
+      "fullPage": true,
+      "ms": 2784,
+      "width": 390,
+      "height": 1317,
+      "title": "GitHub - samplereality/dirt: Bury the Web · GitHub",
+      "finalUrl": "https://github.com/samplereality/dirt",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "WSJ",
+    "category": "paywall",
+    "url": "https://www.wsj.com/",
+    "probe": {
+      "url": "https://www.wsj.com/",
+      "finalUrl": "https://www.wsj.com/",
+      "status": 401,
+      "ms": 328,
+      "frameable": true,
+      "reason": "no framing restrictions in headers",
+      "xFrameOptions": null,
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.wsj.com/",
+      "fullPage": true,
+      "ms": 3400,
+      "width": 390,
+      "height": 664,
+      "title": "wsj.com",
+      "finalUrl": "https://www.wsj.com/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "New Yorker",
+    "category": "paywall, long-form",
+    "url": "https://www.newyorker.com/",
+    "probe": {
+      "url": "https://www.newyorker.com/",
+      "finalUrl": "https://www.newyorker.com/",
+      "status": 200,
+      "ms": 421,
+      "frameable": false,
+      "reason": "CSP frame-ancestors 'self' https://copilot-app.condenast.io https://stg-copilot-app.condenast.io (allows some origins; may still block ours)",
+      "xFrameOptions": null,
+      "frameAncestors": "'self' https://copilot-app.condenast.io https://stg-copilot-app.condenast.io"
+    },
+    "shot": {
+      "url": "https://www.newyorker.com/",
+      "fullPage": true,
+      "ms": 32935,
+      "width": 390,
+      "height": 12000,
+      "title": "The New Yorker",
+      "finalUrl": "https://www.newyorker.com/",
+      "error": null,
+      "waitUsed": "load",
+      "cached": false
+    }
+  },
+  {
+    "name": "Medium",
+    "category": "metered paywall",
+    "url": "https://medium.com/",
+    "probe": {
+      "url": "https://medium.com/",
+      "finalUrl": "https://medium.com/",
+      "status": 200,
+      "ms": 167,
+      "frameable": false,
+      "reason": "CSP frame-ancestors 'self' https://medium.com (allows some origins; may still block ours)",
+      "xFrameOptions": null,
+      "frameAncestors": "'self' https://medium.com"
+    },
+    "shot": {
+      "url": "https://medium.com/",
+      "fullPage": true,
+      "ms": 2751,
+      "width": 390,
+      "height": 664,
+      "title": "Medium: Read and write stories.",
+      "finalUrl": "https://medium.com/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Substack",
+    "category": "newsletter",
+    "url": "https://substack.com/",
+    "probe": {
+      "url": "https://substack.com/",
+      "finalUrl": "https://substack.com/",
+      "status": 200,
+      "ms": 555,
+      "frameable": true,
+      "reason": "CSP frame-ancestors 'self' https://*.substack.com https://substack.com (allows some origins; may still block ours)",
+      "xFrameOptions": null,
+      "frameAncestors": "'self' https://*.substack.com https://substack.com"
+    },
+    "shot": {
+      "url": "https://substack.com/",
+      "fullPage": true,
+      "ms": 9407,
+      "width": 390,
+      "height": 12000,
+      "title": "Substack",
+      "finalUrl": "https://substack.com/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Amazon",
+    "category": "commerce, heavy",
+    "url": "https://www.amazon.com/",
+    "probe": {
+      "url": "https://www.amazon.com/",
+      "finalUrl": "https://www.amazon.com/",
+      "status": 200,
+      "ms": 498,
+      "frameable": true,
+      "reason": "no framing restrictions in headers",
+      "xFrameOptions": null,
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.amazon.com/",
+      "fullPage": true,
+      "ms": 29036,
+      "width": 390,
+      "height": 4242,
+      "title": "Amazon.com. Spend less. Smile more.",
+      "finalUrl": "https://www.amazon.com/",
+      "error": null,
+      "waitUsed": "load",
+      "cached": false
+    }
+  },
+  {
+    "name": "Apple",
+    "category": "marketing, animations",
+    "url": "https://www.apple.com/",
+    "probe": {
+      "url": "https://www.apple.com/",
+      "finalUrl": "https://www.apple.com/",
+      "status": 200,
+      "ms": 259,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.apple.com/",
+      "fullPage": true,
+      "ms": 7382,
+      "width": 390,
+      "height": 12000,
+      "title": "Apple",
+      "finalUrl": "https://www.apple.com/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Google Maps",
+    "category": "JS-heavy app, WebGL",
+    "url": "https://www.google.com/maps",
+    "probe": {
+      "url": "https://www.google.com/maps",
+      "finalUrl": "https://www.google.com/maps",
+      "status": 200,
+      "ms": 355,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.google.com/maps",
+      "fullPage": true,
+      "ms": 2888,
+      "width": 390,
+      "height": 664,
+      "title": "Google Maps",
+      "finalUrl": "https://www.google.com/maps",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Craigslist",
+    "category": "plain HTML",
+    "url": "https://www.craigslist.org/",
+    "probe": {
+      "url": "https://www.craigslist.org/",
+      "finalUrl": "https://www.craigslist.org/area/charlotte",
+      "status": 200,
+      "ms": 1713,
+      "frameable": true,
+      "reason": "CSP frame-ancestors https://*.craigslist.org (allows some origins; may still block ours)",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": "https://*.craigslist.org"
+    },
+    "shot": {
+      "url": "https://www.craigslist.org/",
+      "fullPage": true,
+      "ms": 2923,
+      "width": 390,
+      "height": 664,
+      "title": "craigslist: charlotte jobs, apartments, for sale, services, community, and events",
+      "finalUrl": "https://www.craigslist.org/area/charlotte",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Internet Archive",
+    "category": "archive",
+    "url": "https://archive.org/",
+    "probe": {
+      "url": "https://archive.org/",
+      "finalUrl": "https://archive.org/",
+      "status": 200,
+      "ms": 430,
+      "frameable": true,
+      "reason": "no framing restrictions in headers",
+      "xFrameOptions": null,
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://archive.org/",
+      "fullPage": true,
+      "ms": 6217,
+      "width": 390,
+      "height": 7757,
+      "title": "Internet Archive: Digital Library of Free & Borrowable Texts, Movies, Music & Wayback Machine",
+      "finalUrl": "https://archive.org/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "Davidson College",
+    "category": "institutional",
+    "url": "https://www.davidson.edu/",
+    "probe": {
+      "url": "https://www.davidson.edu/",
+      "finalUrl": "https://www.davidson.edu/",
+      "status": 200,
+      "ms": 222,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.davidson.edu/",
+      "fullPage": true,
+      "ms": 5961,
+      "width": 390,
+      "height": 6970,
+      "title": "Davidson College | Davidson",
+      "finalUrl": "https://www.davidson.edu/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "samplereality.com",
+    "category": "personal site",
+    "url": "https://www.samplereality.com/",
+    "probe": {
+      "url": "https://www.samplereality.com/",
+      "finalUrl": "https://samplereality.com/",
+      "status": 200,
+      "ms": 3572,
+      "frameable": false,
+      "reason": "X-Frame-Options SAMEORIGIN",
+      "xFrameOptions": "SAMEORIGIN",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://www.samplereality.com/",
+      "fullPage": true,
+      "ms": 7801,
+      "width": 390,
+      "height": 10922,
+      "title": "@samplereality – Digital Skulduggery & more",
+      "finalUrl": "https://samplereality.com/",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  },
+  {
+    "name": "MDN",
+    "category": "documentation",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe",
+    "probe": {
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe",
+      "finalUrl": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe",
+      "status": 200,
+      "ms": 278,
+      "frameable": false,
+      "reason": "X-Frame-Options DENY",
+      "xFrameOptions": "DENY",
+      "frameAncestors": null
+    },
+    "shot": {
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe",
+      "fullPage": true,
+      "ms": 5628,
+      "width": 390,
+      "height": 12000,
+      "title": "<iframe> HTML inline frame element - HTML | MDN",
+      "finalUrl": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe",
+      "error": null,
+      "waitUsed": "networkidle",
+      "cached": false
+    }
+  }
+]
