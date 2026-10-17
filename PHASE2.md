@@ -15,8 +15,8 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 | 1 | Dirt never higher than half the page (now a third to a half) | core `fill` default | **done** (0.3.0) |
 | 2 | Flora grows at varied rates, in drifts, not all at once | core: staged blooms, wandering clusters, per-plant rates and delays | **done** (0.3.0) |
 | 3 | More biomes with their own dirt colour: garden, meadow, trellis, hedgerow, forest, desert | core: biome table + palettes + flora systems | **done** (0.3.0); more biomes are additive |
-| 4 | Saved gardens: revisit a buried page and the garden is still there | core `Dirt.export()` / `Dirt.restore()`; extension `storage.local` keyed by URL | **done** (0.3.0), needs device/desktop test |
-| 5 | Dirt that follows links, diminishing over the next few pages | background per-tab budget + injection on navigation | needs a permission decision (below) |
+| 4 | Saved gardens: revisit a buried page and the garden is already there, no click | core `Dirt.export()` / `Dirt.restore()`; extension `storage.local` keyed by URL; `autorestore.js` content script on allowed sites | **done** (ext 0.4), verified headless; needs a real-browser check of the per-site prompt |
+| 5 | Dirt that follows links, diminishing over the next few pages | background per-tab budget + injection on navigation | next; the per-site permission from feature 4 covers it on the same site, cross-site needs the destination site allowed too |
 | 6 | Snapshot-and-share icon in a corner of the overlay | overlay corner control; `tabs.captureVisibleTab` in background; Web Share API / download | next |
 | 7 | Album of buried sites with thumbnails | thumbnail at completion → IndexedDB in background; album page inside the extension | next, after 6 |
 
@@ -28,6 +28,10 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
   into whatever viewport the reader has now.
 - **Click semantics in the extension**: bare page → bury and save on completion; Dirt on screen →
   clear; page with a saved garden → restore. "Forget this garden" lives in the album (feature 7).
+- **Site access is asked per site, on the first bury, never at install.** The click that buries
+  a page also asks, through the browser's own prompt, to run on that site in future; that is what
+  lets a garden come back at page load. Declined → the garden still returns on the next click.
+  No `<all_urls>` at install, so no scary store warning and the privacy note stays simple.
 - **Storage**: `storage.local` for scenes (needs only the `storage` permission; ~10 MB default in
   Chrome, so 250+ gardens before `unlimitedStorage` is needed). Thumbnails go to IndexedDB in the
   background script, never to the page's own storage. No `storage.sync`.
@@ -36,11 +40,10 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 
 ## Decisions for Mark
 
-- **Feature 5 permissions.** Injecting on the *next* page without a click needs host permission
-  for that site. Options: (a) request `<all_urls>` up front — simplest, but store reviewers and
-  the privacy note both suffer; (b) ask for an optional host permission the first time the reader
-  turns "dirt follows links" on — one extra prompt, honest, recommended; (c) skip the feature.
-  Safari on iOS asks per site regardless.
+- **Feature 5 reach.** With per-site access, dirt can follow links *within* an allowed site for
+  free. Following a link to a different site would need that site allowed too, which means
+  either a prompt on arrival (odd) or an "all sites" grant the reader opts into from settings.
+  Recommendation: same-site only, plus an optional "everywhere" switch for readers who want it.
 - **What the album keeps.** A thumbnail per garden means the extension keeps a list of pages the
   reader buried, with a small picture of each. It never leaves the device, but it belongs in the
   privacy note. Per-URL or per-site keys is also a product choice (per-URL for now).
@@ -49,7 +52,7 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 ## Order of work
 
 1. ~~Core: fill cap, varied growth, biomes, export/restore.~~ Done.
-2. ~~Extension: save on completion, restore on click.~~ Done; verify on desktop and iPhone.
+2. ~~Extension: save on completion, restore at page load (per-site permission) or on click.~~ Done; verify the prompt on desktop and iPhone.
 3. Snapshot and share (6): corner control in the overlay (the only interactive part; the rest stays
    click-through), background capture, share sheet on mobile, download on desktop. Verify Safari
    iOS honours `captureVisibleTab` from a web extension — if not, the fallback is sharing the

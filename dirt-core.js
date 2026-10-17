@@ -810,13 +810,15 @@
             var bx = br.x + Math.cos(br.ang) * br.len * br.t, by = br.y + Math.sin(br.ang) * br.len * br.t;
             extendStroke(s, br.stroke, br.px, br.py, bx, by, tr.w * 0.45 * (1 - 0.5 * br.t));
             br.px = bx; br.py = by;
+            if (rnd() < 0.25 * k) { drawLeaf(s, bx, by, br.ang + (rnd() < 0.5 ? 1 : -1) * (0.9 + rnd() * 0.6), 4 + rnd() * 4, pick(tr.leafCols)); }
           }
         }
-        // canopy fills in once the trunk is most of the way up, a few leaves per frame
-        if (tr.t > 0.65 && tr.leaves < tr.leafTarget) {
+        // canopy grows outward from the top of the trunk: leaf j of N sits at radius R*sqrt(j/N),
+        // so each ring fills before the next, like a crown spreading from the inside
+        if (tr.t > 0.6 && tr.leaves < tr.leafTarget) {
           var n = 1 + Math.floor(rnd() * 3 * k), cyc = tr.sy - tr.h * 0.78, rx = tr.h * 0.3, ry = tr.h * 0.26;
           for (var j = 0; j < n && tr.leaves < tr.leafTarget; j++, tr.leaves++) {
-            var a = rnd() * 6.2832, rr = Math.sqrt(rnd());
+            var a = rnd() * 6.2832, rr = Math.sqrt((tr.leaves + rnd()) / tr.leafTarget);
             drawLeaf(s, tr.x + Math.cos(a) * rx * rr, cyc + Math.sin(a) * ry * rr, rnd() * 6.2832, 5 + rnd() * 5, pick(tr.leafCols));
           }
         }

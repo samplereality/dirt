@@ -4,12 +4,26 @@
 `scripting.executeScript` with `activeTab` to inject `dirt-core.js` and then `inject.js`. No
 content scripts run on page load; no host permissions.
 
-Phase 2 (0.3): the extension **remembers gardens**. When a burial finishes, `inject.js` sends
-`Dirt.export()` to `background.js`, which keeps it in `storage.local` under the page URL (hash
-stripped). Clicking on that page later restores the garden instantly instead of burying again;
-clicking while Dirt is on screen clears it. Needs the `storage` permission; nothing leaves the browser.
+Phase 2 (0.4): the extension **remembers gardens, and brings them back at page load.**
 
-- `extension/manifest.json`, `background.js`, `inject.js`, `dirt-core.js` (copied in by `sh build.sh`)
+- First click on a page: `background.js` asks, inside the click, for permission to run on that
+  *site* (the browser's own per-site prompt; nothing is asked at install), then injects the core.
+  When the burial finishes, `inject.js` sends `Dirt.export()` to the background, which keeps it in
+  `storage.local` under the page URL (hash stripped).
+- Revisit that page on an allowed site: `autorestore.js` (a content script that runs on allowed
+  sites only, at `document_idle`) asks the background for the saved scene and restores it with no
+  click and no HUD. If the site was not allowed, the garden still comes back on the next click.
+- Click while Dirt is on screen: clears it. "Forget this garden" will live in the album.
+- Permissions: `activeTab`, `scripting`, `storage`, plus optional site access declared as
+  `optional_host_permissions` (Chrome) and as host patterns in `optional_permissions` (Firefox,
+  Safari); each browser warns about the key it does not use. Nothing leaves the browser.
+
+Verified in headless Chromium with Playwright (`localhost` pre-granted): bury → save → reload →
+restored without a click. The per-site prompt itself needs a real browser: on the first click on
+a site, Chrome shows "Allow Dirt to read and change data on …?"; Firefox and Safari show their
+usual site-access prompt.
+
+- `extension/manifest.json`, `background.js`, `inject.js`, `autorestore.js`, `dirt-core.js` (copied in by `sh build.sh`)
 - `DirtSafariExtension/` — the Swift shell Safari requires (`com.apple.Safari.web-extension`). The
   extension files are copied flat into the `.appex` so `manifest.json` sits at the bundle's resource root.
 
