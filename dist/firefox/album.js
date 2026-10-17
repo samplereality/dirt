@@ -29,7 +29,22 @@ async function render() {
     const actions = document.createElement('div'); actions.className = 'actions';
     const open = document.createElement('button'); open.textContent = 'Visit'; open.onclick = () => { window.open(e.url, '_blank', 'noopener'); };
     const forget = document.createElement('button'); forget.textContent = 'Forget'; forget.className = 'danger';
-    forget.onclick = async () => { await send({ type: 'dirt:forget', url: e.url }); render(); };
+    forget.onclick = async () => { await send({ type: 'dirt:forget', url: e.url }); // "Dirt follows links" onto other sites: the browser's own all-sites permission, asked from this click.
+const everywhere = document.getElementById('everywhere');
+const ALL = { origins: ['*://*/*'] };
+async function refreshSwitch() {
+  try { everywhere.checked = !!(await api.permissions.contains(ALL)); } catch { everywhere.disabled = true; }
+}
+everywhere.addEventListener('change', async () => {
+  try {
+    if (everywhere.checked) { everywhere.checked = !!(await api.permissions.request(ALL)); }
+    else { await api.permissions.remove(ALL); }
+  } catch { /* unsupported here */ }
+  refreshSwitch();
+});
+refreshSwitch();
+
+render(); };
     actions.append(open, forget);
     meta.append(title, sub, host, actions);
     card.append(a, meta);
@@ -40,7 +55,37 @@ async function render() {
 forgetAllBtn.onclick = async () => {
   if (!confirm('Forget every garden saved in this browser?')) return;
   await send({ type: 'dirt:forget-all' });
-  render();
+  // "Dirt follows links" onto other sites: the browser's own all-sites permission, asked from this click.
+const everywhere = document.getElementById('everywhere');
+const ALL = { origins: ['*://*/*'] };
+async function refreshSwitch() {
+  try { everywhere.checked = !!(await api.permissions.contains(ALL)); } catch { everywhere.disabled = true; }
+}
+everywhere.addEventListener('change', async () => {
+  try {
+    if (everywhere.checked) { everywhere.checked = !!(await api.permissions.request(ALL)); }
+    else { await api.permissions.remove(ALL); }
+  } catch { /* unsupported here */ }
+  refreshSwitch();
+});
+refreshSwitch();
+
+render();
 };
+
+// "Dirt follows links" onto other sites: the browser's own all-sites permission, asked from this click.
+const everywhere = document.getElementById('everywhere');
+const ALL = { origins: ['*://*/*'] };
+async function refreshSwitch() {
+  try { everywhere.checked = !!(await api.permissions.contains(ALL)); } catch { everywhere.disabled = true; }
+}
+everywhere.addEventListener('change', async () => {
+  try {
+    if (everywhere.checked) { everywhere.checked = !!(await api.permissions.request(ALL)); }
+    else { await api.permissions.remove(ALL); }
+  } catch { /* unsupported here */ }
+  refreshSwitch();
+});
+refreshSwitch();
 
 render();

@@ -16,7 +16,7 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 | 2 | Flora grows at varied rates, in drifts, not all at once | core: staged blooms, wandering clusters, per-plant rates and delays | **done** (0.3.0) |
 | 3 | More biomes with their own dirt colour: garden, meadow, trellis, hedgerow, forest, desert | core: biome table + palettes + flora systems | **done** (0.3.0); more biomes are additive |
 | 4 | Saved gardens: revisit a buried page and the garden is already there, no click | core `Dirt.export()` / `Dirt.restore()`; extension `storage.local` keyed by URL; `autorestore.js` content script on allowed sites | **done** (ext 0.4), verified headless; needs a real-browser check of the per-site prompt |
-| 5 | Dirt that follows links, diminishing over the next few pages | background per-tab budget + injection on navigation | next; the per-site permission from feature 4 covers it on the same site, cross-site needs the destination site allowed too |
+| 5 | Dirt that follows links, diminishing over the next few pages | per-tab budget in the background, answered through the page-load lookup; core `flora: 'none'` for dirt-only; album switch for other sites | **done** (ext 0.5): 45 % / 22 % / 10 % of the original fill on the next three pages |
 | 6 | Snapshot-and-share icon in a corner of the overlay | core: share button + `Dirt.share()`; extension: `tabs.captureVisibleTab`; Web Share API with download fallback | **done** (core 0.3, ext 0.4); see capture note below |
 | 7 | Album of buried sites with thumbnails | thumbnail + title saved with the scene in `storage.local`; `album.html` inside the extension (also its options page); grid-icon button in the overlay opens it | **done** (ext 0.5) |
 
@@ -59,10 +59,13 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
 
 ## Decisions for Mark
 
-- **Feature 5 reach.** With per-site access, dirt can follow links *within* an allowed site for
-  free. Following a link to a different site would need that site allowed too, which means
-  either a prompt on arrival (odd) or an "all sites" grant the reader opts into from settings.
-  Recommendation: same-site only, plus an optional "everywhere" switch for readers who want it.
+- **Feature 5 reach (decided as recommended).** Spill-over reaches any site the reader has
+  allowed, which covers links within the buried page's own site for free. The album has a switch,
+  "let dirt follow links to other sites", that asks once for the browser's all-sites permission;
+  off by default. Semantics: the next three pages opened in that tab get 45 %, 22 % and 10 % of
+  the original fill, same dirt colour, no garden, no buttons; a link opened into a new tab
+  inherits the budget from its opener; going back to a page that already got its spill shows the
+  same amount; returning to the buried page itself (the garden restores) refreshes the budget.
 - **What the album keeps.** A thumbnail per garden means the extension keeps a list of pages the
   reader buried, with a small picture of each. It never leaves the device, but it belongs in the
   privacy note. Per-URL or per-site keys is also a product choice (per-URL for now).
@@ -82,7 +85,8 @@ sends nothing anywhere, and stores nothing itself; persistence is the extension'
    Forget per card or for all. Reached from the grid-icon button beside the share button, or from
    the extension's settings (it is the options page). Verified in headless Chromium: two burials
    → two cards with thumbnails → forget one → storage cleaned.
-5. Dirt follows links (5), once the permission decision is made.
+5. ~~Dirt follows links (5).~~ Done; verified in headless Chromium across same-tab navigations,
+   the back button and a new tab opened from the buried page.
 6. Distribution: Chrome Web Store and Firefox Add-ons listings; the iOS app on TestFlight via the
    colleague's account (`ios/Config.xcconfig` carries no Team ID, so the move is a one-line edit).
 

@@ -5,6 +5,10 @@
 // permission to run on that site in future, so a saved garden can come back at page load with no
 // click. The ask uses the browser's own per-site prompt; nothing is requested at install.
 //
+// Dirt follows links: once a page in a tab is buried (or its garden restored), the next few pages
+// opened in that tab, or in tabs opened from it, get a thinner layer of the same dirt and no
+// garden. Answered through the page-load lookup, so it reaches any site the reader has allowed.
+//
 // Storage (all in storage.local, all on this device, nothing sent anywhere):
 //   garden:<url>  the exported scene            thumb:<url>  a small JPEG data URL
 //   album:index   [{url, title, host, biome, fill, savedAt}] newest first
@@ -45,6 +49,40 @@ api.action.onClicked.addListener((tab) => {
   });
 });
 
+// ---- dirt follows links
+const SPILL_STEPS = [0.45, 0.22, 0.1];   // fraction of the original fill for the next pages
+const spill = new Map();                  // tabId -> { url, fill, biome, used, pages: {url: fill} }
+
+function markBuried(tabId, url, data) {
+  if (tabId == null || !data) return;
+  spill.set(tabId, { url: gardenKey(url), fill: data.fill, biome: data.biome, used: 0, pages: {} });
+}
+
+async function spillFor(tabId, url) {
+  let rec = spill.get(tabId);
+  if (!rec) {
+    // a link opened into a new tab inherits the budget of the tab it came from
+    try {
+      const tab = await api.tabs.get(tabId);
+      if (tab && tab.openerTabId != null && spill.has(tab.openerTabId)) {
+        const src = spill.get(tab.openerTabId);
+        rec = { url: src.url, fill: src.fill, biome: src.biome, used: src.used, pages: {} };
+        spill.set(tabId, rec);
+      }
+    } catch { /* no opener info */ }
+  }
+  if (!rec) return null;
+  const key = gardenKey(url);
+  if (key === rec.url) return null;                    // the buried page itself
+  if (rec.pages[key] != null) return { fill: rec.pages[key], biome: rec.biome };   // seen before (back button)
+  if (rec.used >= SPILL_STEPS.length) return null;
+  const fill = Math.max(0.03, rec.fill * SPILL_STEPS[rec.used++]);
+  rec.pages[key] = fill;
+  return { fill, biome: rec.biome };
+}
+
+if (api.tabs && api.tabs.onRemoved) api.tabs.onRemoved.addListener((tabId) => spill.delete(tabId));
+
 async function saveGarden({ url, data, thumb, title }) {
   const gk = gardenKey(url), tk = thumbKey(url);
   const put = { [gk]: data };
@@ -72,8 +110,22 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return;
   const reply = (p) => p.then(v => sendResponse(v === undefined ? { ok: true } : v), e => sendResponse({ ok: false, error: e && e.message }));
   switch (msg.type) {
-    case 'dirt:save': if (msg.url && msg.data) { reply(saveGarden(msg)); return true; } break;
-    case 'dirt:lookup': { const k = gardenKey(msg.url || ''); reply(api.storage.local.get(k).then(r => r[k] || null)); return true; }
+    case 'dirt:save': if (msg.url && msg.data) { if (sender && sender.tab) markBuried(sender.tab.id, msg.url, msg.data); reply(saveGarden(msg)); return true; } break;
+    case 'dirt:lookup': {
+      // page load on an allowed site: a saved garden wins; otherwise maybe some spill-over dirt
+      const k = gardenKey(msg.url || ''), tabId = sender && sender.tab ? sender.tab.id : null;
+      reply((async () => {
+        const garden = (await api.storage.local.get(k))[k] || null;
+        if (garden) { markBuried(tabId, msg.url, garden); return { garden }; }
+        return { garden: null, spill: tabId != null ? await spillFor(tabId, msg.url) : null };
+      })());
+      return true;
+    }
+    case 'dirt:spill-state': {
+      // for the album's settings: is all-sites access granted?
+      reply(api.permissions && api.permissions.contains ? api.permissions.contains({ origins: ['*://*/*'] }) : Promise.resolve(false));
+      return true;
+    }
     case 'dirt:forget': reply(forgetGarden(msg.url || '')); return true;
     case 'dirt:forget-all': reply(forgetAll()); return true;
     case 'dirt:list': reply(api.storage.local.get(INDEX).then(r => r[INDEX] || [])); return true;

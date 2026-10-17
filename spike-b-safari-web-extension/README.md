@@ -23,6 +23,12 @@ Phase 2 (0.4): the extension **remembers gardens, and brings them back at page l
   A grid-icon button beside the share button opens `album.html` in a new tab (it is also the
   extension's options page): thumbnails, titles, biomes, dates, Visit and Forget. Storage keys:
   `garden:<url>`, `thumb:<url>`, `album:index`.
+- Dirt follows links: after a page is buried (or its garden restored) in a tab, the next three
+  pages opened in that tab, or in tabs opened from it, get 45 % / 22 % / 10 % of the original fill
+  in the same dirt colour, with no garden and no buttons. The background keeps a per-tab budget
+  and answers it through the same page-load lookup as the saved gardens, so it reaches any site
+  the reader has allowed. The album's settings switch asks for all-sites access to let it cross
+  onto other sites; off by default.
 - Permissions: `activeTab`, `scripting`, `storage`, `unlimitedStorage`, plus optional site access.
   Nothing leaves the browser.
 

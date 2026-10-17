@@ -34,7 +34,7 @@
     cellSize: 4,        // CSS px per simulation cell (dirt grid resolution)
     fill: [0.33, 0.5],  // how much of the viewport the dirt buries (fraction of height, picked at random)
     biome: 'random',    // 'garden' | 'meadow' | 'trellis' | 'hedgerow' | 'forest' | 'desert' | 'random'
-    flora: null,        // legacy alias: 'flowers' -> garden, 'vines' -> trellis, 'bushes' -> hedgerow
+    flora: null,        // legacy alias: 'flowers' -> garden, 'vines' -> trellis, 'bushes' -> hedgerow; 'none' = dirt only
     buryMs: 20000,      // target time for the dirt to reach its fill line
     growMs: 25000,      // target time for the garden to finish
     simHz: 30,          // sand-simulation tick rate; lower = chunkier, more hand-animated motion
@@ -929,6 +929,9 @@
     }
   };
 
+  // dirt only: the spill-over that lands on the pages after a buried one
+  FLORA.none = { init: function () {}, step: function () {}, done: function () { return true; } };
+
   function initGarden(s) {
     s.tips = []; s.vines = []; s.bushes = []; s.plants = []; s.blooms = []; s.clusters = []; s.scene = [];
     s.dirtCells = s.filled;
@@ -1052,7 +1055,7 @@
     var names = Object.keys(BIOMES);
     if (legacyFlora && LEGACY_FLORA[legacyFlora]) { biome = LEGACY_FLORA[legacyFlora]; }
     s.biome = BIOMES[biome] ? biome : names[Math.floor(rnd() * names.length)];
-    s.flora = BIOMES[s.biome].flora;
+    s.flora = legacyFlora === 'none' ? 'none' : BIOMES[s.biome].flora;
     s.pal = PALETTES[BIOMES[s.biome].dirt].map(rgba32);
   }
 
