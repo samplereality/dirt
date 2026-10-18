@@ -273,8 +273,8 @@
     // Shovelfuls: big clumps (150–450 grains), slung in from the edges; roughly fifty of them
     // fill a phone screen. Wide windows get more, not bigger. A quarter extra for grains lost to slides.
     var need = W * (H - s.targetTop) * 1.25;
-    s.shovelCells = Math.max(150, Math.min(450, Math.round(need / 50)));
-    s.shovelInterval = Math.max(60, s.opts.buryMs * s.shovelCells / need);
+    s.shovelCells = Math.max(250, Math.min(700, Math.round(need / 35)));
+    s.shovelInterval = Math.max(80, s.opts.buryMs * s.shovelCells / need);
 
     if (!first) {
       surfaceScan(s);
@@ -306,8 +306,10 @@
     s.topFull = full / W;
     s.topMean = sum / W;
     s.fillActual = 1 - s.topMean / H;
-    var mn = H; for (var q = 0; q < W; q++) { if (tops[q] < mn) { mn = tops[q]; } }
+    var mn = H, spike = 0; for (var q = 0; q < W; q++) { if (tops[q] < mn) { mn = tops[q]; } }
+    for (q = 3; q < W - 3; q++) { var nb = Math.max(tops[q - 3], tops[q + 3]) - tops[q]; if (nb > spike) { spike = nb; } }
     s.fillPeak = 1 - mn / H;   // the tallest column, as a fraction of the height
+    s.spike = spike;           // tallest pillar: rows above the lower of the surfaces 3 cells either side
     return tops;
   }
 
@@ -328,33 +330,30 @@
     var ty = Math.min(H - 1, tops[tx]);
     var n = Math.round(s.shovelCells * (0.6 + rnd() * 0.8));
     var spread = 1.5 + Math.sqrt(n) * 0.33;
-    // The shoveller stands off the left or right edge, level with the bottom of the page: the
-    // throw enters the frame just above the dirt at that edge and lobs across to the landing spot.
+    // The shoveller stands off the left or right edge. The throw enters the frame around the
+    // middle of the page (always above the dirt at that edge) and lobs across to the landing spot.
     var side = rnd() < 0.5 ? -1 : 1;
-    // clear the pile along the whole entry strip, not just the edge column, or grains that enter
-    // inside the dirt land there and ratchet the edge column upward
-    var strip = Math.ceil(spread) + 3, edgeTop = H;
-    for (var e = 0; e < strip && e < W; e++) { var col = side < 0 ? e : W - 1 - e; if (tops[col] < edgeTop) { edgeTop = tops[col]; } }
-    edgeTop = Math.min(H - 2, edgeTop);
+    var strip = Math.ceil(spread) + 3, edgeTop = H, e, col;
+    for (e = 0; e < strip && e < W; e++) { col = side < 0 ? e : W - 1 - e; if (tops[col] < edgeTop) { edgeTop = tops[col]; } }
     var x0 = side < 0 ? -spread - 2 : W + spread + 2;
-    var y0 = edgeTop - spread * 1.3 - 4 - rnd() * 4;
-    // Ballistic solve for the clump's shared velocity: reach (tx, ty) in T sim ticks. Longer
-    // flights lob higher. The arc must clear the terrain on the way, or the clump lands on a
-    // mound's face and that mound grows into every later throw; so lob higher, then try the
-    // other side, before giving up and throwing anyway.
-    var kk = 60 / s.opts.simHz, dist = Math.abs(tx - x0) / W, T = (36 + dist * 30 + rnd() * 16) * kk, g = 0.03;
+    var y0 = Math.min(H * (0.4 + rnd() * 0.2), edgeTop - spread * 1.3 - 4);
+    // Ballistic solve for the clump's shared velocity: reach (tx, ty) in T sim ticks. Start with
+    // the flattest flight, lob higher only until the arc clears the terrain, never past the top
+    // of the screen; if it still cannot clear, try the other side, then throw anyway.
+    var kk = 60 / s.opts.simHz, g = 0.05, T = (22 + Math.abs(tx - x0) / W * 18 + rnd() * 8) * kk;
     var vx, vy, tries = 0;
     for (;;) {
       vx = (tx - x0) / T; vy = (ty - y0) / T - 0.5 * g * T;
-      if (arcClear(s, x0, y0, vx, vy, g, T, tx, spread)) { break; }
+      var apex = vy < 0 ? y0 - vy * vy / (2 * g) : y0;
+      if (arcClear(s, x0, y0, vx, vy, g, T, tx, spread) || apex < 2) { break; }
       tries++;
-      if (tries === 4) {
+      if (tries === 5) {
         side = -side; x0 = side < 0 ? -spread - 2 : W + spread + 2;
         edgeTop = H; for (e = 0; e < strip && e < W; e++) { col = side < 0 ? e : W - 1 - e; if (tops[col] < edgeTop) { edgeTop = tops[col]; } }
-        y0 = Math.min(H - 2, edgeTop) - spread * 1.3 - 4 - rnd() * 4;
-        T = (36 + Math.abs(tx - x0) / W * 30) * kk;
-      } else if (tries > 7) { break; }
-      else { T *= 1.25; }
+        y0 = Math.min(H * (0.4 + rnd() * 0.2), edgeTop - spread * 1.3 - 4);
+        T = (22 + Math.abs(tx - x0) / W * 18) * kk;
+      } else if (tries > 9) { break; }
+      else { T *= 1.18; }
     }
     var c0 = 1 + Math.floor(rnd() * s.pal.length);
     for (var i = 0; i < n; i++) {
@@ -382,24 +381,54 @@
   }
 
   function land(s, p) {
-    var W = s.W, H = s.H, g = s.grid;
+    var W = s.W, H = s.H, g = s.grid, tops = s.tops;
     var cx = Math.max(0, Math.min(W - 1, Math.floor(p.x)));
-    var cy = Math.min(H - 1, Math.floor(p.y));
+    var cy = Math.max(0, Math.min(H - 1, Math.floor(p.y)));
     while (cy >= 0 && g[cy * W + cx]) { cy--; }
     if (cy < 0) { return; }
-    // Safety valve: nothing settles far above the fill line. A grain that would, slips to the
-    // nearest column that still has room (invisible at grain scale, keeps towers impossible).
+    while (cy + 1 < H && !g[(cy + 1) * W + cx]) { cy++; }   // drop onto the ground, never hang in the air
+    // Safety valve: nothing settles far above the fill line. A grain that would, slips to a
+    // random column nearby that still has room (invisible at grain scale, keeps towers impossible).
     if (cy < s.targetTop - s.H * 0.12) {
-      for (var d = 1; d < W; d++) {
-        var l = cx - d, r = cx + d;
-        if (l >= 0 && s.tops[l] > s.targetTop - 2) { cx = l; break; }
-        if (r < W && s.tops[r] > s.targetTop - 2) { cx = r; break; }
+      var dir = rnd() < 0.5 ? -1 : 1, skip = Math.floor(rnd() * 6), found = -1;
+      for (var pass = 0; pass < 2 && found < 0; pass++, dir = -dir) {
+        for (var d = 1; d < W; d++) { var c = cx + dir * d; if (c < 0 || c >= W) { break; } if (tops[c] > s.targetTop - 2 && skip-- <= 0) { found = c; break; } }
       }
-      cy = Math.min(H - 1, s.tops[cx]); while (cy >= 0 && g[cy * W + cx]) { cy--; }
+      if (found < 0) { return; }
+      cx = found; cy = Math.min(H - 1, tops[cx]); while (cy >= 0 && g[cy * W + cx]) { cy--; }
       if (cy < 0) { return; }
-      s.tops[cx] = cy;
+    }
+    // Level at deposit: a heap of loose earth stands no steeper than about one in two. A grain
+    // that would top a column more than a cell above the ground two cells over (or above its
+    // neighbour) walks downhill, one column at a time, picking a side at random when both are
+    // lower. Cones and pillars never form; the heap spreads as it lands.
+    for (var step = 0; step < 14; step++) {
+      var lo = steepSide(s, cx, cy);
+      if (!lo) { break; }
+      cx += lo; cy = Math.min(H - 1, tops[cx]); while (cy >= 0 && g[cy * W + cx]) { cy--; }
+      if (cy < 0) { return; }
+    }
+    // ...and often a little further down whatever gentle slope it lands on: the clump spreads.
+    while (rnd() < 0.6) {
+      var dl = cx > 0 && tops[cx - 1] > cy, dr = cx < W - 1 && tops[cx + 1] > cy;
+      if (!dl && !dr) { break; }
+      cx += dl && dr ? (rnd() < 0.5 ? -1 : 1) : dl ? -1 : 1;
+      cy = Math.min(H - 1, tops[cx]); while (cy >= 0 && g[cy * W + cx]) { cy--; }
+      if (cy < 0) { return; }
     }
     g[cy * W + cx] = p.c;
+    if (cy < tops[cx]) { tops[cx] = cy; }
+  }
+
+  // Which way is the ground too steep from a grain resting at (cx, cy)? -1, 1 or 0 for neither.
+  // Too steep: the next column's top, or the one two over, sits two or more cells lower than cy
+  // (a slope of about one in two, the angle loose dirt rests at).
+  function steepSide(s, cx, cy) {
+    var W = s.W, tops = s.tops, l = 0, r = 0;
+    if (cx > 0 && (tops[cx - 1] > cy + 1 || (cx > 1 && tops[cx - 2] > cy + 1))) { l = 1; }
+    if (cx < W - 1 && (tops[cx + 1] > cy + 1 || (cx < W - 2 && tops[cx + 2] > cy + 1))) { r = 1; }
+    if (l && r) { return rnd() < 0.5 ? -1 : 1; }
+    return l ? -1 : r ? 1 : 0;
   }
 
   // Row of the empty cell sitting on top of column cx at or above row cy.
@@ -457,28 +486,44 @@
   // random, which rounds the peaks instead of leaving sharp 45° ridges.
   function settle(s) {
     var g = s.grid, W = s.W, H = s.H;
+    // The sweep runs bottom-up and in place, so when the foot of a steep face slides away the
+    // whole column above would drop into the hole like a piston, one cell per tick, and the face
+    // would stand for seconds. Instead a grain whose support left during this very tick first
+    // tries to slide and tumble like the one below it did, and only falls straight if it cannot.
+    var prev = s.prevGrid || (s.prevGrid = new Uint8Array(g.length)); prev.set(g);
     for (var y = H - 2; y >= 0; y--) {
       var row = y * W, below = row + W, below2 = below + W;
       for (var x = 0; x < W; x++) {
         var i = row + x, v = g[i];
         if (!v) { continue; }
-        if (!g[below + x]) { g[below + x] = v; g[i] = 0; continue; }
+        var hole = !g[below + x];
+        if (hole && !prev[below + x]) { g[below + x] = v; g[i] = 0; continue; }
         seed = (seed * 1103515245 + 12345) | 0;
-        var dir = seed & 1 ? 1 : -1, moved = false;
+        var r = seed >>> 16, dir = r & 1 ? 1 : -1, moved = false;   // high bits: the low ones of this generator barely vary
         for (var t = 0; t < 2 && !moved; t++, dir = -dir) {
           var nx = x + dir;
           if (nx < 0 || nx >= W || g[row + nx]) { continue; }
-          if (!g[below + nx]) { g[below + nx] = v; g[i] = 0; moved = true; }
+          if (!g[below + nx]) {
+            // Tumble down the slope: one diagonal step, and often a second or third while the
+            // way stays clear. Grains on a steep face then move at different speeds, so a face
+            // never slides down as one sheet; it shears into a slope within a tick or two.
+            g[i] = 0; var ty = y + 1, tx = nx, sh = 1;
+            while (sh < 4 && (r >> sh) & 1 && ty + 1 < H && tx + dir >= 0 && tx + dir < W && !g[(ty + 1) * W + tx + dir] && !g[ty * W + tx + dir]) { ty++; tx += dir; sh++; }
+            g[ty * W + tx] = v; moved = true;
+          }
           else if (y === 0 || !g[row - W + x]) {
-            // surface grain with a lower neighbour: step sideways, fall next tick. Often when the
-            // drop is two or more cells (shallow slope), rarely when it is one (slow relaxation
-            // that rounds the humps without flattening them). Above the fill line: always, so no
-            // mound or tower can stand higher than the page is meant to be buried.
-            var high = y < s.targetTop - 1;
-            if (high || (y + 2 < H && !g[below2 + nx])) { if ((seed & 3) !== 0) { g[row + nx] = v; g[i] = 0; moved = true; } }
-            else if ((seed & 63) === 0) { g[row + nx] = v; g[i] = 0; moved = true; }
+            // surface grain with a neighbour one cell lower: step sideways, fall next tick.
+            // Usually when the ground two over is two or more cells lower (the heap slumps to a
+            // one-in-two slope, the angle loose earth rests at); rarely otherwise (a slow
+            // relaxation that rounds the humps without flattening them); nearly always above
+            // the fill line, so no mound can stand much higher than the page is meant to be buried.
+            var high = y < s.targetTop - 1, nx2 = nx + dir;
+            if (high || (y + 2 < H && !g[below2 + nx])) { if ((r & 48) !== 0) { g[row + nx] = v; g[i] = 0; moved = true; } }
+            else if (nx2 >= 0 && nx2 < W && !g[below + nx2] && (r & 64)) { g[row + nx] = v; g[i] = 0; moved = true; }   // ground two over is two cells lower: slump to a one-in-two slope, the angle loose earth rests at
+            else if ((r & 0x3f00) === 0) { g[row + nx] = v; g[i] = 0; moved = true; }
           }
         }
+        if (hole && !moved) { g[below + x] = v; g[i] = 0; }
       }
     }
   }
@@ -535,7 +580,7 @@
       s.shovelAcc -= s.shovelNext;
       s.shovelNext = s.shovelInterval * (0.35 + rnd() * 1.3);
       // Count grains still in the air as landed, or the fill overshoots the line by a dozen rows.
-      if (s.topMean - s.particles.length / s.W > s.targetTop) { spawnShovel(s); }
+      if (s.topMean - s.particles.length / s.W > s.targetTop) { if (spawnShovel(s)) { s.lastThrow = now(); } }
     }
     // Fixed-rate simulation ticks (simHz), rendered every frame.
     var tick = 1000 / s.opts.simHz, k = 60 / s.opts.simHz, ticks = 0;
@@ -544,9 +589,11 @@
       s.simAcc -= tick; ticks++;
       stepParticles(s, k);
       settle(s);
+      surfaceScan(s);
     }
     if (ticks && (s.frames & 7) === 0) { countFilled(s); surfaceScan(s); }
-    var done = (s.topMean <= s.targetTop && s.particles.length === 0) || elapsed > s.opts.buryMs * 2.5;
+    var calm = s.spike <= 4 || now() - (s.lastThrow || 0) > 3000;   // the last heap has slumped into a mound
+    var done = (s.topMean <= s.targetTop && s.particles.length === 0 && calm) || elapsed > s.opts.buryMs * 2.5;
     if (done) {
       // Tamp down: fill air pockets beneath the surface so the dirt reads as solid ground.
       var g = s.grid, W = s.W, H = s.H;
@@ -936,9 +983,9 @@
         var h = Math.min(sy - 10, (th[0] + rnd() * (th[1] - th[0])) * ch);
         var ever = rnd() < 0.4, plan = [], b;
         if (ever) {
-          var tiers = 6 + Math.floor(rnd() * 4);
+          var tiers = 11 + Math.floor(rnd() * 5);
           for (b = 0; b < tiers; b++) {
-            var frac = 0.22 + (b / tiers) * 0.72, len = h * 0.3 * (1 - frac * 0.8) + 3;
+            var frac = 0.12 + (b / tiers) * 0.84, len = h * 0.32 * (1 - frac * 0.85) + 3;
             plan.push({ at: frac, ang: 3.1416 - 0.35 - rnd() * 0.2, len: len });   // left, swept down
             plan.push({ at: frac, ang: 0.35 + rnd() * 0.2, len: len });            // right, swept down
           }
@@ -975,9 +1022,11 @@
           if (tr.t === 1) { tr.stroke.pts.push(nx, ny); }
           continue;
         }
-        // 2. branches, in order from the trunk base up; the next starts once the previous is half grown
+        // 2. branches, in order from the trunk base up; the next starts once the previous is
+        //    under way (evergreens: a whole tier at a time, quickly)
         var last = tr.branches[tr.branches.length - 1];
-        if (tr.plan.length && (!last || last.t > 0.5)) {
+        var gate = tr.ever ? 0.15 : 0.35;
+        if (tr.plan.length && (!last || last.t > gate)) {
           var pn = tr.plan.shift();
           var bx0 = tr.x + Math.sin(pn.at * 3.1) * tr.sway * tr.h * 0.15, by0 = tr.sy - tr.h * pn.at;
           tr.branches.push({ x: bx0, y: by0, ang: pn.ang, len: pn.len, t: 0, px: bx0, py: by0, leaves: 0,
@@ -986,7 +1035,7 @@
         for (var b = 0; b < tr.branches.length; b++) {
           var br = tr.branches[b];
           if (br.t < 1) {
-            br.t = Math.min(1, br.t + tr.rate * 2.2 * dt);
+            br.t = Math.min(1, br.t + tr.rate * (tr.ever ? 6 : 3.2) * dt);
             var bx = br.x + Math.cos(br.ang) * br.len * br.t, by = br.y + Math.sin(br.ang) * br.len * br.t;
             extendStroke(s, br.stroke, br.px, br.py, bx, by, tr.w * 0.5 * (1 - 0.6 * br.t));
             var moved = Math.sqrt((bx - br.px) * (bx - br.px) + (by - br.py) * (by - br.py));
@@ -1396,7 +1445,7 @@
         fps: avg ? 1000 / avg : 0, avgFrameMs: avg, p95FrameMs: st.p95,
         simMs: st.simMs, drawMs: st.drawMs, longFrames: st.longFrames,
         frames: s.frames, elapsed: (now() - s.t0) / 1000,
-        coverage: s.coverage, fill: s.fillFrac, fillActual: s.fillActual, fillPeak: s.fillPeak || 0, greenCoverage: s.greenCov,
+        coverage: s.coverage, fill: s.fillFrac, fillActual: s.fillActual, fillPeak: s.fillPeak || 0, spike: s.spike || 0, greenCoverage: s.greenCov,
         particles: s.particles.length, tips: s.tips.length, sceneOps: s.scene.length,
         vines: s.vines.filter(function (v) { return !v.done; }).length
       };

@@ -1,5 +1,6 @@
-// Helpers shared by inject.js and autorestore.js (content-script world).
-const DirtExt = (() => {
+// Helpers shared by inject.js and autorestore.js (content-script world). Declared with var so the
+// file can be injected again into a page where it already ran (a click after page-load restore).
+var DirtExt = globalThis.DirtExt || (() => {
   const api = globalThis.browser ?? globalThis.chrome;
   const send = (msg) => api.runtime.sendMessage(msg);
 
@@ -29,6 +30,13 @@ const DirtExt = (() => {
     return send({ type: 'dirt:save', url: location.href, data, thumb, title: document.title });
   }
 
+  // The first shovelful is thrown: tell the background, so links followed from here carry dirt
+  // even if the reader leaves before the garden is finished.
+  function begin() {
+    const st = Dirt.stats();
+    if (st) send({ type: 'dirt:begin', url: location.href, data: { fill: st.fill, biome: st.biome } }).catch(() => {});
+  }
+
   // While the routine runs, keep a small checkpoint so leaving the page and coming back
   // continues it instead of freezing or starting over. Saved every 2 s and on page hide.
   let ticker = 0;
@@ -37,6 +45,7 @@ const DirtExt = (() => {
     if (c) send({ type: 'dirt:checkpoint', url: location.href, data: c }).catch(() => {});
   }
   function watch() {
+    begin();
     clearInterval(ticker);
     ticker = setInterval(() => { if (Dirt.phase === 'burying' || Dirt.phase === 'growing') checkpoint(); else clearInterval(ticker); }, 2000);
     window.addEventListener('pagehide', checkpoint, { once: false });
@@ -50,5 +59,5 @@ const DirtExt = (() => {
     }, extra || {});
   }
 
-  return { api, capture, openAlbum, thumbnail, saveCurrent, checkpoint, watch, opts };
+  return { api, capture, openAlbum, thumbnail, saveCurrent, begin, checkpoint, watch, opts };
 })();

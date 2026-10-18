@@ -5,9 +5,12 @@
 // permission to run on that site in future, so a saved garden can come back at page load with no
 // click. The ask uses the browser's own per-site prompt; nothing is requested at install.
 //
-// Dirt follows links: once a page in a tab is buried (or its garden restored), the next few pages
-// opened in that tab, or in tabs opened from it, get a thinner layer of the same dirt and no
-// garden. Answered through the page-load lookup, so it reaches any site the reader has allowed.
+// Dirt follows links: from the first shovelful on a page (not just once its garden is finished),
+// the next few pages opened in that tab, or in tabs opened from it, get a thinner layer of the
+// same dirt and no garden. Answered through the page-load lookup on sites the reader has
+// allowed; for the rest, the background injects the same scripts itself when a tab that owes
+// spill-over finishes loading (activeTab keeps that possible on the site that was clicked;
+// elsewhere the browser may refuse, and the page simply stays clean).
 //
 // Storage (all in storage.local, all on this device, nothing sent anywhere):
 //   garden:<url>  the exported scene            thumb:<url>  a small JPEG data URL
@@ -54,9 +57,30 @@ const SPILL_STEPS = [0.45, 0.22, 0.1];   // fraction of the original fill for th
 const spill = new Map();                  // tabId -> { url, fill, biome, used, pages: {url: fill} }
 
 function markBuried(tabId, url, data) {
-  if (tabId == null || !data) return;
-  spill.set(tabId, { url: gardenKey(url), fill: data.fill, biome: data.biome, used: 0, pages: {} });
+  if (tabId == null || !data || !(data.fill > 0)) return;
+  const key = gardenKey(url), rec = spill.get(tabId);
+  if (rec && rec.url === key) { rec.fill = data.fill; rec.biome = data.biome; return; }   // same burial, keep its budget
+  spill.set(tabId, { url: key, fill: data.fill, biome: data.biome, used: 0, pages: {} });
 }
+
+async function owesSpill(tabId) {
+  if (spill.has(tabId)) return true;   // spillFor decides (budget left, or a page seen before)
+  try { const tab = await api.tabs.get(tabId); return tab && tab.openerTabId != null && spill.has(tab.openerTabId); }
+  catch { return false; }
+}
+
+// A tab that owes spill-over finished loading a page: make sure the scripts are there to ask
+// for it. On allowed sites the content script already ran (DirtExt is defined) and we stop.
+if (api.tabs && api.tabs.onUpdated) api.tabs.onUpdated.addListener(async (tabId, info, tab) => {
+  if (info.status !== 'complete' || !tab || (tab.url && !/^https?:/.test(tab.url))) return;
+  if (!(await owesSpill(tabId))) return;
+  const target = { tabId };
+  try {
+    const [probe] = await api.scripting.executeScript({ target, func: () => typeof DirtExt !== 'undefined' });
+    if (probe && probe.result) return;
+    await api.scripting.executeScript({ target, files: ['dirt-core.js', 'shared.js', 'autorestore.js'] });
+  } catch { /* no access to this page: it stays clean */ }
+});
 
 async function spillFor(tabId, url) {
   let rec = spill.get(tabId);
@@ -111,16 +135,23 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const reply = (p) => p.then(v => sendResponse(v === undefined ? { ok: true } : v), e => sendResponse({ ok: false, error: e && e.message }));
   switch (msg.type) {
     case 'dirt:save': if (msg.url && msg.data) { if (sender && sender.tab) markBuried(sender.tab.id, msg.url, msg.data); reply(saveGarden(msg)); return true; } break;
+    case 'dirt:begin':
+      // the first shovelful: from now on links out of this tab carry dirt
+      if (msg.url && msg.data && sender && sender.tab) markBuried(sender.tab.id, msg.url, msg.data);
+      sendResponse({ ok: true }); return;
     case 'dirt:checkpoint':
       // mid-routine snapshot: replaces the garden slot for this URL but is not in the album
-      if (msg.url && msg.data && msg.data.partial) { reply(api.storage.local.set({ [gardenKey(msg.url)]: msg.data })); return true; }
+      if (msg.url && msg.data && msg.data.partial) {
+        if (sender && sender.tab) markBuried(sender.tab.id, msg.url, msg.data);
+        reply(api.storage.local.set({ [gardenKey(msg.url)]: msg.data })); return true;
+      }
       break;
     case 'dirt:lookup': {
       // page load on an allowed site: a saved garden wins; otherwise maybe some spill-over dirt
       const k = gardenKey(msg.url || ''), tabId = sender && sender.tab ? sender.tab.id : null;
       reply((async () => {
         const garden = (await api.storage.local.get(k))[k] || null;
-        if (garden) { if (!garden.partial) markBuried(tabId, msg.url, garden); return { garden }; }
+        if (garden) { markBuried(tabId, msg.url, garden); return { garden }; }
         return { garden: null, spill: tabId != null ? await spillFor(tabId, msg.url) : null };
       })());
       return true;

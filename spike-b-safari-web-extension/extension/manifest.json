@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bury with Dirt",
-  "version": "0.5",
+  "version": "0.6",
   "description": "Buries the current page under shovelfuls of dirt, then lets a garden grow over it. Remembers each garden on this device. Draws on top of the page only; sends nothing anywhere.",
   "action": {
     "default_title": "Bury with Dirt"
