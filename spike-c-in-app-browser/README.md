@@ -1,6 +1,9 @@
 # Spike C — in-app browser (WKWebView + WKUserScript)
 
-Covers links that never reach Safari: a URL shared from Mail, Slack, X, Instagram's browser, etc.
+*Retired in Phase 2 (the Web Extension plus the share-sheet action cover the same ground). The
+code still builds and is the shell of the iOS host app, which is why it stays in the repo.*
+
+Covered links that never reach Safari: a URL shared from Mail, Slack, X, Instagram's browser, etc.
 
 - `DirtBrowser/WebView.swift` — `WKWebView` with `dirt-core.js` added as a `WKUserScript`
   (`atDocumentEnd`, main frame only). The script only defines `Dirt`; the floating **Bury** button

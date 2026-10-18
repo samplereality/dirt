@@ -138,6 +138,50 @@ as deciduous branches so the tree fills in while the others are still bare poles
 groundcover on the dirt itself, low tufts and clover filling in during growth (density per
 biome in `COVER_DENSITY`).
 
+## Where things stand (hand-off, 2026-10-18)
+
+All seven features are implemented and pass the headless checks (`npm test`). The last round of
+device feedback (dirt missing on followed links while the garden grows; pillars; arcs too steep;
+evergreens too bare) is addressed in extension 0.6 and the current core, but **none of it has
+been seen on the iPhone yet**: the headless suite cannot show the permission prompts, the share
+sheet, or what the throw feels like at 60 fps on glass.
+
+### Device checklist for the next build
+
+Build with `sh build.sh`, then `cd ios && xcodegen generate` and run the `Dirt` scheme on the
+phone (`ios/README.md`); on the desktop load `dist/chrome/` or `dist/firefox/`.
+
+1. Bury a page and watch the throw: clumps enter mid-page from the left or right, arc across
+   without leaving the top of the screen, slow going up and fast coming down, land as lumps that
+   spread into rounded mounds. No pillars, no walls standing for more than a moment.
+2. Forest biome (force it from the test page with `?biome=forest`, or keep burying until it
+   comes up): evergreens fill their tiers early; deciduous trees go trunk → branches → leaves.
+3. Follow a link while the dirt is still falling: the next page should already carry a thinner,
+   settled layer. Go back: the bury continues. After the garden, two more pages get dirt, the
+   fourth none. Then the same across sites with the album's "follow links to other sites" switch.
+4. Reload a buried page on an allowed site: the garden is there with no tap. On a site where the
+   per-site prompt was declined: the garden returns on the next tap.
+5. The share button: Safari's share sheet opens with a picture of the page and garden (after a
+   tap) or the garden alone (after a silent restore).
+6. The album from the grid button: thumbnails, Visit, Forget, Forget all.
+7. Rotate during the bury and during the garden; collapse the address bar; background Safari
+   for ten seconds; the scene should survive all of it.
+8. The share-sheet action ("Bury with Dirt" in the share row) still runs its full life after the
+   sheet closes.
+
+Record fps / p95 from the HUD (`debug: true` is on for click-started runs) and anything that
+looks wrong, with the site. Pillars or spikes: a screenshot is worth more than a description.
+
+### Next after that
+
+- Distribution (item 6 above): store listings, privacy note (the extension keeps a list of
+  buried pages with small pictures of them, on the device only), TestFlight via the chosen
+  account; `ios/Config.xcconfig` carries no Team ID so the move is a one-line edit.
+- Decisions still with Mark: end state of a garden; reduced motion; biome weighting; per-URL vs
+  per-site keys; publishing identity (own name, LLC, or a colleague's studio, see the sidebar
+  discussion in the session history).
+- Spike D stays as the demo; its 22-site survey is in `spike-d-web-fallback/RESULTS.md`.
+
 ## Still open from Phase 1
 
 - End state: the garden stays until the reader clicks again. Fade, loop, or re-emerge are each a

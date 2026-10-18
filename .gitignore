@@ -29,3 +29,6 @@ spike-d-web-fallback/cache/
 .env
 .env.*
 .claude/settings.local.json
+
+# Test output (screenshots, extension copies, browser profiles)
+tests/out/

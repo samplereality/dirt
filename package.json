@@ -2,7 +2,7 @@
   "name": "dirt",
   "version": "0.1.0",
   "private": true,
-  "description": "Dirt — bury the web. Phase 1 feasibility spikes.",
+  "description": "Dirt \u2014 bury the web. Core module, browser extension, iOS targets and harnesses.",
   "type": "module",
   "scripts": {
     "serve": "node spike-0-core/serve.mjs 8080",
@@ -10,7 +10,10 @@
     "bench:phone": "node spike-0-core/bench.mjs --throttle 4",
     "fallback": "node spike-d-web-fallback/server.mjs",
     "probe": "node spike-d-web-fallback/probe-sites.mjs spike-d-web-fallback/sites.json",
-    "build:ios": "sh build.sh"
+    "build:ios": "sh build.sh",
+    "test": "node tests/run.mjs",
+    "test:core": "node tests/run.mjs core",
+    "test:ext": "node tests/run.mjs ext"
   },
   "dependencies": {
     "playwright": "1.56.1"

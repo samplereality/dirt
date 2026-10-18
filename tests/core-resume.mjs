@@ -1,0 +1,27 @@
+// Checkpoint mid-bury and mid-growth, reload, resume: the routine must continue, not restart.
+import { serve, launch, PHONE } from './_lib.mjs';
+const srv = await serve();
+const b = await launch(PHONE);
+const page = b.page;
+await page.goto(srv.testPage());
+await page.evaluate(() => Dirt.start({ biome: 'hedgerow', debug: false, buryMs: 8000, growMs: 6000 }));
+await page.waitForTimeout(4000);
+const cp1 = await page.evaluate(() => Dirt.checkpoint());
+const before = await page.evaluate(() => +Dirt.stats().fillActual.toFixed(3));
+console.log('checkpoint mid-bury:', cp1.phase, 'fill so far', before);
+await page.evaluate(() => Dirt.stop()); await page.reload();
+const r1 = await page.evaluate(d => { Dirt.resume(d, { debug: false, buryMs: 8000, growMs: 6000 }); const st = Dirt.stats(); return { phase: st.phase, fillActual: +st.fillActual.toFixed(3) }; }, cp1);
+console.log('resumed:', JSON.stringify(r1));
+await page.waitForFunction(() => Dirt.phase === 'growing', null, { timeout: 30000 });
+await page.waitForTimeout(2500);
+const cp2 = await page.evaluate(() => Dirt.checkpoint());
+await page.evaluate(() => Dirt.stop()); await page.reload();
+const r2 = await page.evaluate(d => { Dirt.resume(d, { debug: false, growMs: 6000 }); return Dirt.phase; }, cp2);
+console.log('resumed mid-growth into:', r2);
+await page.waitForFunction(() => Dirt.phase === 'garden', null, { timeout: 40000 });
+const fin = await page.evaluate(() => { const s = Dirt.stats(); return { phase: s.phase, sceneOps: s.sceneOps, fillActual: +s.fillActual.toFixed(3) }; });
+console.log('finished:', JSON.stringify(fin));
+await b.close(); srv.close();
+const ok = r1.phase === 'burying' && Math.abs(r1.fillActual - before) < 0.05 && r2 === 'growing' && fin.phase === 'garden';
+console.log(ok ? 'PASS' : 'FAIL');
+process.exit(ok ? 0 : 1);

@@ -1,6 +1,10 @@
 # Spike A — iOS Action extension ("Bury with Dirt" in Safari's share sheet)
 
-**Top-priority spike.** A no-UI Action extension whose `Info.plist` names `Action` as its
+*Phase 1 answered its key question (yes: the animation survives the share sheet closing, see
+`FINDINGS.md`). In Phase 2 it is the quick entry on iOS, bundled in the same app as the Web
+Extension; it has no extension storage, so it cannot save or restore gardens.*
+
+A no-UI Action extension whose `Info.plist` names `Action` as its
 `NSExtensionJavaScriptPreprocessingFile`. Safari injects `Resources/Action.js` into the live page:
 `run()` fires when the share sheet opens, `finalize()` fires after the native side completes the
 request. `finalize()` calls `Dirt.start({ debug: true })`.

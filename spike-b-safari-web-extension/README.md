@@ -1,10 +1,12 @@
 # Spike B — Safari Web Extension (Manifest V3), bundled in the same app
 
 `extension/` is a plain cross-browser MV3 extension: a toolbar/menu **action** that runs
-`scripting.executeScript` with `activeTab` to inject `dirt-core.js` and then `inject.js`. No
-content scripts run on page load; no host permissions.
+`scripting.executeScript` with `activeTab` to inject `dirt-core.js`, `shared.js` and then
+`inject.js`. A content script (`autorestore.js`) runs at page load only on sites the reader has
+allowed; no host permissions are held at install.
 
-Phase 2 (0.4): the extension **remembers gardens, and brings them back at page load.**
+Phase 2 (extension 0.6): the extension **remembers gardens, brings them back at page load, keeps
+an album, shares pictures, and lets the dirt follow links.**
 
 - First click on a page: `background.js` asks, inside the click, for permission to run on that
   *site* (the browser's own per-site prompt; nothing is asked at install), then injects the core.
